@@ -16,6 +16,8 @@ class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
+            
+            ProjectDropDown::class,
             UserProjectStats::class,
             ResultChart::class,
             TargetProject::class,

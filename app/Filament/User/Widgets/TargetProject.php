@@ -3,6 +3,7 @@
 namespace App\Filament\User\Widgets;
 
 use Filament\Widgets\ChartWidget;
+use App\Models\Project; // <-- REQUIRED
 use App\Models\Process;
 use Illuminate\Support\Facades\Auth;
 
@@ -10,18 +11,49 @@ class TargetProject extends ChartWidget
 {
     protected ?string $heading = 'Target Project Recommendation';
 
+    public ?int $projectId = null;    // ADD THIS (required)
+
+    protected $listeners = ['projectSelected' => 'updateProject'];
+
+    public function updateProject($projectId)
+    {
+        $this->projectId = $projectId;
+        $this->dispatch('$refresh');
+    }
+
+    public function getHeading(): string
+    {
+        if ($this->projectId) {
+            $p = Project::find($this->projectId);
+            return $p?->project_name ?? 'Project Process Completion';
+        }
+
+        $project = Project::where('user_id', Auth::id())->latest()->first();
+
+        return $project?->project_name ?? 'Project Process Completion';
+    }
+
     protected function getType(): string
     {
         return 'bar';
     }
 
+    
     protected function getData(): array
     {
         $userId = Auth::id();
 
-        $process = Process::whereHas('project', fn($q) => $q->where('user_id', $userId))
-            ->latest()
+        $process = Process::when(
+                $this->projectId,
+                fn($q) => $q->where('project_id', $this->projectId)
+            )
+            ->when(
+                !$this->projectId,
+                fn($q) => $q->whereHas('project', fn($p) => $p->where('user_id', $userId))
+                    ->latest()
+            )
             ->first();
+
 
         // Max marks per stage
         $maxMarks = [

@@ -2,11 +2,11 @@
 
 namespace App\Filament\Resources\Projects\Pages;
 
-use Filament\Forms\Components\Actions\Action;
-use App\Filament\Resources\Projects\ProjectResource;
 use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Resources\Projects\ProjectResource;
 use App\Models\Process;
 use App\Models\Project;
+use App\Models\SDGStatus;
 use Filament\Exceptions\FormsValidationException;
 
 class CreateProject extends CreateRecord
@@ -15,9 +15,7 @@ class CreateProject extends CreateRecord
     protected static bool $canCreateAnother = false;
 
     protected array $processData = [];
-
-  
-
+    protected array $sdgTotals = [];
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -26,87 +24,174 @@ class CreateProject extends CreateRecord
             ->where('project_name', $data['project_name'])
             ->exists()) {
             throw FormsValidationException::withMessages([
-                'project_name' => 'You already have a project with this name.  Please make a new one or edit existing Projct',
+                'project_name' => 'You already have a project with this name. Please make a new one or edit existing project',
             ]);
         }
 
         $this->processData = $data['process'] ?? [];
 
-        // STEP 2 – Initiation
-        if (!empty($data['initiation_items'])) {
-            $marks = [
-                'site_selection' => 2,
-                'energy_preassessment' => 2,
-                'water_strategy' => 2,
-                'waste_plan' => 2,
-                'sustainability_statement' => 1,
-                'bim_simulation' => 3,
-                'environment_simulations' => 3,
-                'clash_free_bim' => 2,
-            ];
-            $this->processData['initiation'] =
-                array_sum(array_map(fn($i) => $marks[$i] ?? 0, $data['initiation_items']));
+        // SDG totals
+        $this->sdgTotals = [
+            'sdg3'  => 0,
+            'sdg6'  => 0,
+            'sdg7'  => 0,
+            'sdg8'  => 0,
+            'sdg9'  => 0,
+            'sdg11' => 0,
+            'sdg12' => 0,
+            'sdg13' => 0,
+            'sdg15' => 0,
+        ];
+
+        // SDG max points
+        $sdgMaxPoints = [
+            'sdg3' => 10, 'sdg6' => 4, 'sdg7' => 9, 'sdg8' => 7,
+            'sdg9' => 32, 'sdg11' => 7, 'sdg12' => 30, 'sdg13' => 4, 'sdg15' => 1,
+        ];
+
+        // SDG mapping
+        $sdgMap = [
+            'site_selection' => 'sdg11',
+            'energy_preassessment' => 'sdg13',
+            'water_strategy' => 'sdg11',
+            'waste_plan' => 'sdg11',
+            'sustainability_statement' => 'sdg11',
+            'bim_simulation' => 'sdg13',
+            'environment_simulations' => 'sdg13',
+            'clash_free_bim' => 'sdg11',
+
+            'energy_modelling' => 'sdg7,sdg9',
+            'high_eff' => 'sdg3,sdg7,sdg9',
+            'passive_design' => 'sdg7,sdg9',
+            'rain_harvest' => 'sdg6,sdg9',
+            'greywater' => 'sdg6,sdg9',
+            'daylight' => 'sdg3,sdg7,sdg9',
+            'ventiation' => 'sdg3,sdg7,sdg9',
+            'low_carbon' => 'sdg3,sdg7,sdg9',
+            'const_waste' => 'sdg3,sdg9',
+            'green_land' => 'sdg3,sdg6',
+            'heat_strategy' => 'sdg3,sdg7,sdg9',
+            'thermal_model' => 'sdg7,sdg9',
+            'water_eff' => 'sdg6',
+            'mats_lifecycle' => 'sdg3,sdg9',
+
+            'smart_energy' => 'sdg8,sdg12',
+            'ctrl_measure' => 'sdg9,sdg12',
+            'li_design' => 'sdg9,sdg12',
+            'se_ctrl' => 'sdg9,sdg12',
+            'avoid' => 'sdg9,sdg12',
+            'basic_access' => 'sdg8,sdg9',
+            'waste_tracking' => 'sdg9,sdg12',
+            'perecentage_recycled' => 'sdg12',
+            'my_hijau' => 'sdg9,sdg12',
+            'useof_recycle' => 'sdg8,sdg12',
+            'recyce_rate' => 'sdg12',
+            'reduce_waste' => 'sdg9,sdg12',
+            'voc' => 'sdg8,sdg12',
+            'led' => 'sdg9,sdg12',
+            'motion_sensors' => 'sdg9,sdg12',
+            'hvac_systems' => 'sdg9,sdg12',
+            'renewable_energy' => 'sdg9,sdg12',
+            'energy_management' => 'sdg9,sdg12',
+            'energy_star' => 'sdg9',
+            'bas_integrated' => 'sdg9',
+            'energy_eff' => 'sdg9,sdg12',
+            'tolerat_landscape' => 'sdg12',
+            'bathroom_pantry' => 'sdg12',
+            'water_consumpt' => 'sdg12',
+            'water_monitor' => 'sdg9,sdg12',
+            'water_leakage' => 'sdg9,sdg12',
+            'ventilation_light' => 'sdg8,sdg12',
+            'ieq_standard' => 'sdg8,sdg9,sdg12',
+
+            'build_performance' => 'sdg11',
+            'air_quaity' => 'sdg3',
+            'thermal_comfort' => 'sdg3',
+            'cleaning_mats' => 'sdg11',
+            'sustain' => 'sdg7',
+
+            'mats_salvage' => 'sdg12',
+            'recyclable_percentage' => 'sdg12',
+            'waste_segregation' => 'sdg12',
+            'audit_docs' => 'sdg8',
+            'recycle_analysis' => 'sdg12',
+            'eol_impact' => 'sdg13',
+        ];
+
+        // Helper to calculate stage and SDGs
+        $calculateStage = function(array $items, array $marks) use ($sdgMap) {
+            $total = 0;
+            $sdgPoints = [];
+            foreach ($items as $item) {
+                $points = $marks[$item] ?? 0;
+                $total += $points;
+                if (!empty($sdgMap[$item])) {
+                    $sdgs = array_map('trim', explode(',', $sdgMap[$item]));
+                    $splitPoints = $points / count($sdgs); // split points
+                    foreach ($sdgs as $sdg) {
+                        $sdgPoints[$sdg] = ($sdgPoints[$sdg] ?? 0) + $splitPoints;
+                    }
+                }
+            }
+            return [$total, $sdgPoints];
+        };
+
+        // Marks per stage
+        $marksInitiation = [
+            'site_selection' => 2, 'energy_preassessment' => 2, 'water_strategy' => 2,
+            'waste_plan' => 2, 'sustainability_statement' => 1, 'bim_simulation' => 3,
+            'environment_simulations' => 3, 'clash_free_bim' => 2,
+        ];
+        $marksPlanning = [
+            'energy_modelling' => 3, 'passive_design' => 2, 'high_eff' => 2,
+            'rain_harvest' => 2, 'greywater' => 2, 'daylight' => 2,
+            'ventiation' => 2, 'low_carbon' => 2, 'const_waste' => 2,
+            'green_land' => 2, 'heat_strategy' => 2, 'thermal_model' => 3,
+            'water_eff' => 2, 'mats_lifecycle' => 3,
+        ];
+        $marksExecution = [
+            'smart_energy' => 2, 'ctrl_measure' => 2, 'li_design' => 2,
+            'se_ctrl' => 2, 'avoid' => 1, 'basic_access' => 1,
+            'waste_tracking' => 3, 'perecentage_recycled' => 2, 'my_hijau' => 2,
+            'useof_recycle' => 2, 'recyce_rate' => 3, 'reduce_waste' => 2, 'voc' => 2,
+            'led' => 2, 'motion_sensors' => 2, 'hvac_systems' => 2, 'renewable_energy' => 3,
+            'energy_management' => 3, 'energy_star' => 3, 'bas_integrated' => 3, 'energy_eff' => 3,
+            'tolerat_landscape' => 1, 'bathroom_pantry' => 2, 'water_eff' => 2, 'water_consumpt' => 1,
+            'water_monitor' => 2, 'water_leakage' => 2, 'ventilation_light' => 1, 'ieq_standard' => 2,
+        ];
+        $marksMonitoring = [
+            'smart_energy' => 2,'build_performance' => 2, 'air_quaity' => 2, 'thermal_comfort' => 2,
+            'cleaning_mats' => 2, 'sustain' => 2,
+        ];
+        $marksClosing = [
+            'mats_salvage' => 2, 'recyclable_percentage' => 3,
+            'waste_segregation' => 2, 'audit_docs' => 2, 'recycle_analysis' => 3,
+            'eol_impact' => 2,
+        ];
+
+        // Calculate each stage
+        [$this->processData['initiation'], $sdgStage] = $calculateStage($data['initiation_items'] ?? [], $marksInitiation);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
+
+        $planningItems = array_merge($data['planning_items_left'] ?? [], $data['planning_items_right'] ?? []);
+        [$this->processData['planning'], $sdgStage] = $calculateStage($planningItems, $marksPlanning);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
+
+        [$this->processData['execution'], $sdgStage] = $calculateStage($this->processData['execution'] ?? [], $marksExecution);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
+
+        [$this->processData['monitoring'], $sdgStage] = $calculateStage($this->processData['monitoring'] ?? [], $marksMonitoring);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
+
+        [$this->processData['closing'], $sdgStage] = $calculateStage($this->processData['closing'] ?? [], $marksClosing);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
+
+        // Cap SDG totals by max
+        foreach ($this->sdgTotals as $sdg => $points) {
+            $this->sdgTotals[$sdg] = min(round($points), $sdgMaxPoints[$sdg]);
         }
 
-        // STEP 3 – Planning
-        if (!empty($data['planning_items_left']) || !empty($data['planning_items_right'])) {
-            $marks = [
-                'energy_modelling' => 3,
-                'passive_design' => 2,
-                'high_eff' => 2,
-                'rain_harvest' => 2,
-                'greywater' => 2,
-                'daylight' => 2,
-                'ventiation' => 2,
-                'low_carbon' => 2,
-                'const_waste' => 2,
-                'green_land' => 2,
-                'heat_strategy' => 2,
-                'thermal_model' => 3,
-                'water_eff' => 2,
-                'mats_lifecycle' => 3,
-            ];
-            $items = array_merge($data['planning_items_left'] ?? [], $data['planning_items_right'] ?? []);
-            $this->processData['planning'] = array_sum(array_map(fn($i) => $marks[$i] ?? 0, $items));
-        }
-
-        // STEP 4 – Execution
-        if (!empty($this->processData['execution'])) {
-            $marks = [
-                'smart_energy' => 2, 'ctrl_measure' => 2, 'li_design' => 2,
-                'se_ctrl' => 2, 'avoid' => 1, 'basic_access' => 1,
-                'waste_tracking' => 3, 'perecentage_recycled' => 2, 'my_hijau' => 2,
-                'useof_recycle' => 2, 'recyce_rate' => 3, 'reduce_waste' => 2, 'voc' => 2,
-                'led' => 2, 'motion_sensors' => 2, 'hvac_systems' => 2, 'renewable_energy' => 3,
-                'energy_management' => 3, 'energy_star' => 3, 'bas_integrated' => 3, 'energy_eff' => 3,
-                'tolerat_landscape' => 1, 'bathroom_pantry' => 2, 'water_eff' => 2, 'water_consumpt' => 1,
-                'water_monitor' => 2, 'water_leakage' => 2, 'ventilation_light' => 1, 'ieq_standard' => 2,
-            ];
-            $this->processData['execution'] =
-                array_sum(array_map(fn($i) => $marks[$i] ?? 0, $this->processData['execution']));
-        }
-
-        // STEP 5 – Monitoring
-        if (!empty($this->processData['monitoring'])) {
-            $marks = [
-                'smart_energy' => 2, 'build_performance' => 2, 'air_quaity' => 2,
-                'thermal_comfort' => 2, 'cleaning_mats' => 2, 'sustain' => 2,
-            ];
-            $this->processData['monitoring'] =
-                array_sum(array_map(fn($i) => $marks[$i] ?? 0, $this->processData['monitoring']));
-        }
-
-        // STEP 6 – Closing
-        if (!empty($this->processData['closing'])) {
-            $marks = [
-                'mats_salvage' => 2, 'recyclable_percentage' => 3,
-                'waste_segregation' => 2, 'audit_docs' => 2, 'recycle_analysis' => 3,
-                'eol_impact' => 2,
-            ];
-            $this->processData['closing'] =
-                array_sum(array_map(fn($i) => $marks[$i] ?? 0, $this->processData['closing']));
-        }
-
+        // Remove extra fields
         unset($data['process'], $data['initiation_items'], $data['planning_items_left'], $data['planning_items_right']);
 
         return $data;
@@ -130,6 +215,7 @@ class CreateProject extends CreateRecord
             default => 'FAIL',
         };
 
+        // Store Process
         Process::create([
             'project_id' => $this->record->id,
             'initiation' => $this->processData['initiation'] ?? 0,
@@ -139,5 +225,11 @@ class CreateProject extends CreateRecord
             'closing'    => $this->processData['closing'] ?? 0,
             'status'     => $status,
         ]);
+
+        // Store SDGStatus
+        SDGStatus::create(array_merge([
+            'project_id' => $this->record->id,
+            'status' => $status,
+        ], $this->sdgTotals));
     }
 }

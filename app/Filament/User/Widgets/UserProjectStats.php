@@ -12,37 +12,67 @@ class UserProjectStats extends BaseWidget
 {
     protected ?string $heading = 'Project Statistics';
 
+    public ?int $projectId = null;
+
+    protected $listeners = ['projectSelected' => 'updateProject'];
+
+    public function updateProject($projectId)
+    {
+        $this->projectId = $projectId;
+        $this->dispatch('$refresh');
+    }
+
+    public function getHeading(): string
+    {
+        if ($this->projectId) {
+            $p = Project::find($this->projectId);
+            return $p?->project_name ?? 'Project Statistics';
+        }
+
+        $project = Project::where('user_id', Auth::id())->latest()->first();
+
+        return $project?->project_name ?? 'Project Statistics';
+    }
+
     protected function getStats(): array
     {
-       $userId = Auth::id();
+        $userId = Auth::id();
 
-        // Total projects
+        // -------------------------
+        // 1. Count Total Projects
+        // -------------------------
         $totalProjects = Project::where('user_id', $userId)->count();
 
-        // Latest project
-        $latestProject = Project::where('user_id', $userId)->latest()->first();
+        // -------------------------
+        // 2. Get selected project OR latest project
+        // -------------------------
+        $project = $this->projectId
+            ? Project::find($this->projectId)
+            : Project::where('user_id', $userId)->latest()->first();
 
-        // Target (string: PLATINUM, GOLD, SILVER)
-        $latestTarget = $latestProject ? $latestProject->target : 'N/A';
+        // Safety fallback
+        $projectId = $project?->id ?? null;
 
-        // Latest process for the user
-        $latestProcess = Process::whereHas('project', fn($q) => $q->where('user_id', $userId))
-            ->latest()
-            ->first();
+        // -------------------------
+        // 3. Get Process for selected project
+        // -------------------------
+        $process = $projectId
+            ? Process::where('project_id', $projectId)->first()
+            : null;
 
-        // Latest status
-        $status = $latestProcess ? $latestProcess->status : 'N/A';
+        // -------------------------
+        // 4. Target (PLATINUM/GOLD/...)
+        // -------------------------
+        $latestTarget = $project?->target ?? 'N/A';
 
-        // Latest process for the user
-        $process = Process::whereHas('project', function ($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })->latest()->first();
+        // -------------------------
+        // 5. Status (From project)
+        // -------------------------
+        $status = $project?->status ?? 'N/A';
 
-      
-
-
-
-        // Max scores per stage
+        // -------------------------
+        // 6. Calculate process-based completion
+        // -------------------------
         $maxMarks = [
             'Initiation' => 17,
             'Planning'   => 31,
@@ -51,7 +81,6 @@ class UserProjectStats extends BaseWidget
             'Closing'    => 14,
         ];
 
-        // User marks (if process exists)
         $stepMarks = $process ? [
             'Initiation' => $process->initiation,
             'Planning'   => $process->planning,
@@ -60,46 +89,60 @@ class UserProjectStats extends BaseWidget
             'Closing'    => $process->closing,
         ] : array_fill_keys(array_keys($maxMarks), 0);
 
-        // Overall completion %
         $totalMax = array_sum($maxMarks);
         $totalUserMark = array_sum($stepMarks);
-        $overallPercentage = $totalMax ? round(($totalUserMark / $totalMax) * 100, 1) : 0;
+
+        $overallPercentage = $totalMax
+            ? round(($totalUserMark / $totalMax) * 100, 1)
+            : 0;
 
         return [
+            // ------------------------------------
+            // STAT 1: Total Projects
+            // ------------------------------------
             Stat::make('Total Projects', $totalProjects)
                 ->description('All projects you created')
                 ->descriptionIcon('heroicon-o-folder'),
 
+            // ------------------------------------
+            // STAT 2: Target (PLATINUM / GOLD / etc)
+            // ------------------------------------
             Stat::make('Target', $latestTarget)
-                ->description('Target of latest project')
+                ->description('Target of selected project')
                 ->descriptionIcon('heroicon-o-flag')
                 ->color(match($latestTarget) {
                     'PLATINUM' => 'success',
-                    'GOLD' => 'warning',
-                    'SILVER' => 'danger',
-                    default => 'primary',
+                    'GOLD'     => 'warning',
+                    'SILVER'   => 'danger',
+                    'CERTIFIED'=> 'primary',
+                    default    => 'secondary',
                 }),
 
+            // ------------------------------------
+            // STAT 3: Project Completion (%)
+            // ------------------------------------
             Stat::make('Project Completion', $overallPercentage . '%')
-                ->description('Overall progress from process marks')
+                ->description('Progress based on process marks')
                 ->descriptionIcon('heroicon-o-chart-pie')
                 ->color(
                     $overallPercentage >= 80 ? 'success' :
                     ($overallPercentage >= 50 ? 'warning' : 'danger')
                 ),
 
-            Stat::make('Latest Status', $status)
-                ->description('Status of the latest process')
-                 ->descriptionIcon('heroicon-o-chart-pie')
+            // ------------------------------------
+            // STAT 4: Status (PLATINUM / GOLD / etc)
+            // ------------------------------------
+            Stat::make('Status', $status)
+                ->description('Final status of selected project')
+                ->descriptionIcon('heroicon-o-check-circle')
                 ->color(match($status) {
-                    'PLATINUM', 'CERTIFIED' => 'success',
-                    'GOLD' => 'warning',
-                    'SILVER' => 'primary',
-                    'FAIL' => 'danger',
-                    default => 'secondary',
+                    'PLATINUM'  => 'success',
+                    'GOLD'      => 'warning',
+                    'SILVER'    => 'primary',
+                    'CERTIFIED' => 'success',
+                    'FAIL'      => 'danger',
+                    default     => 'secondary',
                 }),
-
-
         ];
     }
 }

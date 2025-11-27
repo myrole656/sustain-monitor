@@ -10,12 +10,20 @@ use Filament\Actions\DeleteAction;
 use Illuminate\Support\Facades\Auth;
 use Filament\Actions\Action;
 use App\Models\Project;
+use Illuminate\Database\Eloquent\Builder;
 
 class ProjectsTable
 {
     public static function configure(Table $table): Table
 {
     return $table
+        ->modifyQueryUsing(function (Builder $query) {
+
+             if (Auth::user()->role === 'admin') {
+        return; // Do nothing — shows all
+    }
+                $query->where('user_id', Auth::id());
+            })
         ->columns([
             TextColumn::make('user.name')->label('Responder')->sortable()->searchable(),
             TextColumn::make('project_name')->label('Project Name')->sortable()->searchable(),

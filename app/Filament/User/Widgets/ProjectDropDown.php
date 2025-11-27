@@ -2,32 +2,46 @@
 
 namespace App\Filament\User\Widgets;
 
-use Filament\Widgets\Widget;
 use App\Models\Project;
+use Filament\Widgets\Widget;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Forms\Components\Select;
 use Illuminate\Support\Facades\Auth;
 
-class ProjectDropDown extends Widget
+class ProjectDropDown extends Widget implements HasForms
 {
-    protected string $view = 'filament.user.widgets.project-dropdown';
+    use InteractsWithForms;
+
+    protected  string $view = 'filament.user.widgets.project-dropdown';
 
     public ?int $projectId = null;
 
-    public function mount(): void
+    public function mount()
     {
-        // Default to the latest project
-        $this->projectId = Project::where('user_id', Auth::id())->latest()->value('id');
+        $this->form->fill([
+            'projectId' => null,
+        ]);
     }
 
-    public function updatedProjectId(): void
+    protected function getFormSchema(): array
     {
-        // Emit event when project changes
-        $this->emit('projectChanged', $this->projectId);
-    }
+        return [
+            Select::make('projectId')
+                ->label('Select Project')
+                ->options(
+                    Project::where('user_id', Auth::id())
+                        ->pluck('project_name', 'id')
+                        ->toArray()
+                )
+                ->placeholder('Choose project')
+                ->reactive()
+                ->afterStateUpdated(function ($state) {
+                    $this->projectId = $state;
 
-    public function getProjectsProperty(): array
-    {
-        return Project::where('user_id', Auth::id())
-            ->pluck('project_name', 'id')
-            ->toArray();
+                    // Send event to SDG widget
+                    $this->dispatch('projectSelected', projectId: $state);
+                }),
+        ];
     }
 }

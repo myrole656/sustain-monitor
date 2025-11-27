@@ -9,17 +9,28 @@ use Illuminate\Support\Facades\Auth;
 
 class ResultChart extends ChartWidget
 {
-    protected bool $hasForm = false; // No form needed
+    protected bool $hasForm = false;
     protected static bool $isFormHidden = true;
 
-    public ?int $project_id = null;
+    public ?int $project_id = null;   // keep your original variable
+    public ?int $projectId = null;    // ADD THIS (required)
+
+    protected $listeners = ['projectSelected' => 'updateProject'];
+
+    public function updateProject($projectId)
+    {
+        $this->projectId = $projectId;
+        $this->dispatch('$refresh');
+    }
 
     public function getHeading(): string
     {
-        // Get the latest project of the user
-        $project = Project::where('user_id', Auth::id())->latest()->first();
+        if ($this->projectId) {
+            $p = Project::find($this->projectId);
+            return $p?->project_name ?? 'Project Process Completion';
+        }
 
-        $this->project_id = $project?->id;
+        $project = Project::where('user_id', Auth::id())->latest()->first();
 
         return $project?->project_name ?? 'Project Process Completion';
     }
@@ -34,14 +45,13 @@ class ResultChart extends ChartWidget
         $userId = Auth::id();
 
         $process = Process::query()
-            ->when($this->project_id, fn($q) => $q->where('project_id', $this->project_id))
-            ->when(!$this->project_id, fn($q) =>
+            ->when($this->projectId, fn($q) => $q->where('project_id', $this->projectId))
+            ->when(!$this->projectId, fn($q) =>
                 $q->whereHas('project', fn($p) => $p->where('user_id', $userId))
-                    ->oldest()
+                    ->latest()
             )
             ->first();
 
-        // Maximum marks per category
         $maxMarks = [
             'Initiation' => 17,
             'Planning'   => 31,
@@ -50,7 +60,6 @@ class ResultChart extends ChartWidget
             'Closing'    => 14,
         ];
 
-        // Step marks (0 if process not found)
         $stepMarks = $process ? [
             'Initiation' => $process->initiation,
             'Planning'   => $process->planning,
@@ -59,13 +68,13 @@ class ResultChart extends ChartWidget
             'Closing'    => $process->closing,
         ] : array_fill_keys(array_keys($maxMarks), 0);
 
-        $totalMax = array_sum($maxMarks);          // 111 total marks
-        $obtained = array_sum($stepMarks);         // total obtained by user
+        $totalMax = array_sum($maxMarks);
+        $obtained = array_sum($stepMarks);
         $overallPercentage = round(($obtained / $totalMax) * 100, 1);
 
-        // Prepare chart labels as "obtained / max"
         $labels = [];
         $percentages = [];
+
         foreach ($stepMarks as $step => $mark) {
             $labels[] = "{$step} ({$mark}/{$maxMarks[$step]})";
             $percentages[] = round(($mark / $totalMax) * 100, 1);

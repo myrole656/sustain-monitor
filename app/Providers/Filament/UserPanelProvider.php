@@ -44,6 +44,7 @@ class UserPanelProvider extends PanelProvider
             )
             ->pages([
                 Dashboard::class,
+                 \App\Filament\User\Pages\ProjectStatus::class,
             ])
             ->middleware([
                 EncryptCookies::class,
