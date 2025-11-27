@@ -26,8 +26,8 @@ class TargetProject extends ChartWidget
         // Max marks per stage
         $maxMarks = [
             'Initiation' => 17,
-            'Planning'   => 26,
-            'Execution'  => 42,
+            'Planning'   => 31,
+            'Execution'  => 60,
             'Monitoring' => 12,
             'Closing'    => 14,
         ];

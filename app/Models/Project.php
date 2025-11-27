@@ -27,4 +27,14 @@ class Project extends Model
     {
         return $this->belongsTo(User::class);
     }
+    protected static function booted()
+{
+    static::updated(function ($project) {
+        if ($project->isDirty('status')) { // Only when status changes
+            $project->user->notify(
+                new \App\Notifications\ProjectStatusNotification($project->name, $project->status)
+            );
+        }
+    });
+}
 }

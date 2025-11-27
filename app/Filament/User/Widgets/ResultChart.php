@@ -44,8 +44,8 @@ class ResultChart extends ChartWidget
         // Maximum marks per category
         $maxMarks = [
             'Initiation' => 17,
-            'Planning'   => 26,
-            'Execution'  => 42,
+            'Planning'   => 31,
+            'Execution'  => 60,
             'Monitoring' => 12,
             'Closing'    => 14,
         ];

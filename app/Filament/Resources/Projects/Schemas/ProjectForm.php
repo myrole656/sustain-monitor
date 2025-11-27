@@ -102,7 +102,7 @@ class ProjectForm
 
                         // RIGHT COLUMN
                         CheckboxList::make('planning_items_right')
-                            ->label('Planning Phase – Part 2')
+                           
                             ->options([
                                 'low_carbon' => 'Low-carbon materials specified.',
                                 'const_waste' => 'BIM-based quantity optimisation.',

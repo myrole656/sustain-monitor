@@ -4,7 +4,9 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\RoleLoginController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PDFController;
-use App\Http\Controllers\GuidelineController; // <<< ADD THIS
+
+use Filament\Notifications\Notification;
+use App\Http\Controllers\AdminNotificationController;
 
 // Home route
 Route::get('/', function () {
@@ -37,13 +39,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
 Route::get('/pdf/project/{id}', [PDFController::class, 'projectReport'])
     ->name('pdf.project');
 
-
-// ✅ ADD THESE: Guideline preview + download
-Route::middleware(['auth'])->group(function () {
-
-    Route::get('/user/guideline/preview', [GuidelineController::class, 'preview'])
-        ->name('guideline.preview');
-
-    Route::get('/user/guideline/download', [GuidelineController::class, 'download'])
-        ->name('guideline.download');
+    Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin/notifications/create', [AdminNotificationController::class, 'create'])->name('admin.notifications.create');
+    Route::post('/admin/notifications/send', [AdminNotificationController::class, 'send'])->name('admin.notifications.send');
 });
+
+
+

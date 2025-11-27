@@ -23,13 +23,16 @@ class ProjectsTable
             TextColumn::make('reg_date')->label('Registered At')->date()->sortable(),
             BadgeColumn::make('status')
                 ->label('Status')
-                ->getStateUsing(fn($record) => $record->status ?? 'FAIL')
+                ->getStateUsing(function ($record) {
+// Get the related process and its status
+                return $record->process?->status ?? 'FAIL';
+                })
                 ->colors([
-                    'success'   => fn($state) => $state === 'PLATINUM',
-                    'primary'   => fn($state) => $state === 'GOLD',
-                    'warning'   => fn($state) => $state === 'SILVER',
-                    'danger'    => fn($state) => $state === 'CERTIFIED',
-                    'secondary' => fn($state) => $state === 'FAIL',
+                'success' => fn($state) => $state === 'PLATINUM',
+                'primary' => fn($state) => $state === 'GOLD',
+                'warning' => fn($state) => $state === 'SILVER',
+                'danger' => fn($state) => $state === 'CERTIFIED',
+                'secondary' => fn($state) => $state === 'FAIL',
                 ]),
         ])
         ->actions([
