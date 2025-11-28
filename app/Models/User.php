@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -21,7 +21,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role', // add this line
+        'role',
     ];
 
     /**
@@ -35,7 +35,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * Get the attributes that should be cast.
+     * The attributes that should be cast.
      *
      * @return array<string, string>
      */
@@ -47,7 +47,10 @@ class User extends Authenticatable
         ];
     }
 
-        public function isAdmin(): bool
+    /**
+     * Role helpers
+     */
+    public function isAdmin(): bool
     {
         return $this->role === 'admin';
     }
@@ -57,4 +60,12 @@ class User extends Authenticatable
         return $this->role === 'user';
     }
 
+    /**
+     * Filament access control
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Allow both admin AND user to access Filament
+        return in_array($this->role, ['admin', 'user']);
+    }
 }
