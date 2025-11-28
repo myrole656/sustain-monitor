@@ -28,7 +28,7 @@ class UserPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
-                    ->databaseNotifications()
+        
 
             ->discoverResources(
                 in: app_path('Filament/Resources'),
@@ -36,7 +36,7 @@ class UserPanelProvider extends PanelProvider
             )
             ->discoverPages(
                 in: app_path('Filament/Pages'),
-                for: 'App\\Filament\\Pages'
+                for: 'App\\User\\Filament\\Pages'
             )
             ->discoverWidgets(
                 in: app_path('Filament/User/Widgets'),

@@ -15,10 +15,12 @@ use Illuminate\Validation\Rule;
 class ProjectForm
 {
     protected static bool $canCreateAnother = false;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
             Wizard::make([
+
                 /* ------------------------------
                 |  STEP 1 – PROJECT INFO
                 --------------------------------*/
@@ -35,6 +37,9 @@ class ProjectForm
 
                         TextInput::make('project_location')
                             ->label('Project Location'),
+
+                        TextInput::make('pic_name')
+                            ->label('PIC Name'),
 
                         TextInput::make('pic_contact')
                             ->label('PIC Contact'),
@@ -83,11 +88,9 @@ class ProjectForm
                 --------------------------------*/
                 Step::make('Planning')
                     ->icon('heroicon-o-map')
-                    ->columns(2)
                     ->schema([
-                        // LEFT COLUMN
-                        CheckboxList::make('planning_items_left')
-                            ->label('Planning Phase – Part 1')
+                        CheckboxList::make('planning_items')
+                            ->label('Planning Phase Checklist')
                             ->options([
                                 'energy_modelling' => 'BIM-based energy modelling completed.',
                                 'passive_design' => 'Passive design strategies incorporated.',
@@ -96,14 +99,6 @@ class ProjectForm
                                 'greywater' => 'Greywater recycling system designed.',
                                 'daylight' => 'Daylighting simulation meets standards.',
                                 'ventiation' => 'Natural ventilation strategy incorporated.',
-                            ])
-                            ->columns(1)
-                            ->required(),
-
-                        // RIGHT COLUMN
-                        CheckboxList::make('planning_items_right')
-                           
-                            ->options([
                                 'low_carbon' => 'Low-carbon materials specified.',
                                 'const_waste' => 'BIM-based quantity optimisation.',
                                 'green_land' => 'Green landscape plan prepared.',
@@ -112,7 +107,7 @@ class ProjectForm
                                 'water_eff' => 'Water efficiency simulation done.',
                                 'mats_lifecycle' => 'Life-cycle assessment (LCA) conducted.',
                             ])
-                            ->columns(1)
+                            ->columns(2)
                             ->required(),
                     ]),
 
@@ -121,9 +116,12 @@ class ProjectForm
                 --------------------------------*/
                 Step::make('Execution')
                     ->icon('heroicon-o-cog-6-tooth')
+                    ->columns(5)
                     ->schema([
-                        CheckboxList::make('process.execution')
-                            ->label('Execution Phase Checklist')
+
+                        // COLUMN 1 — Environmental Protection
+                        CheckboxList::make('process.execution_env')
+                            ->label('1. Environmental Protection')
                             ->options([
                                 'smart_energy' => 'Dust, noise, and pollution monitoring implemented.',
                                 'ctrl_measure' => 'Erosion and sedimentation control measures in place.',
@@ -131,7 +129,13 @@ class ProjectForm
                                 'se_ctrl' => 'Green area erosion control.',
                                 'avoid' => 'Flood-zone avoidance reviewed.',
                                 'basic_access' => 'Access to public transport ensured.',
+                            ])
+                            ->columns(1),
 
+                        // COLUMN 2 — Waste & Material Sustainability
+                        CheckboxList::make('process.execution_waste')
+                            ->label('2. Waste & Material Sustainability')
+                            ->options([
                                 'waste_tracking' => 'Real-time waste tracking.',
                                 'perecentage_recycled' => 'Recycled materials tracked.',
                                 'my_hijau' => 'Green-certified materials used.',
@@ -139,7 +143,13 @@ class ProjectForm
                                 'recyce_rate' => 'Achieved 50% recycling.',
                                 'reduce_waste' => 'Prefabricated components used.',
                                 'voc' => 'Low-VOC materials used.',
+                            ])
+                            ->columns(1),
 
+                        // COLUMN 3 — Energy Efficiency
+                        CheckboxList::make('process.execution_energy')
+                            ->label('3. Energy Efficiency')
+                            ->options([
                                 'led' => 'LED lighting installed.',
                                 'motion_sensors' => 'Motion sensors installed.',
                                 'hvac_systems' => 'Efficient HVAC installed.',
@@ -148,19 +158,30 @@ class ProjectForm
                                 'energy_star' => 'MS 1525 compliance.',
                                 'bas_integrated' => 'BAS integrated.',
                                 'energy_eff' => 'Efficient building envelope.',
+                            ])
+                            ->columns(1),
 
+                        // COLUMN 4 — Water Efficiency
+                        CheckboxList::make('process.execution_water')
+                            ->label('4. Water Efficiency')
+                            ->options([
                                 'tolerat_landscape' => 'Drought-tolerant landscaping.',
                                 'bathroom_pantry' => 'Low-flow fixtures installed.',
                                 'water_eff' => 'Water-efficient systems.',
                                 'water_consumpt' => 'Water reduction achieved.',
                                 'water_monitor' => 'Water monitoring installed.',
                                 'water_leakage' => 'Leak detection system.',
+                            ])
+                            ->columns(1),
 
+                        // COLUMN 5 — Indoor Environmental Quality (IEQ)
+                        CheckboxList::make('process.execution_ieq')
+                            ->label('5. Indoor Environmental Quality (IEQ)')
+                            ->options([
                                 'ventilation_light' => 'Good ventilation & lighting.',
                                 'ieq_standard' => 'IEQ standards achieved.',
                             ])
-                            ->columns(3)
-                            ->required(),
+                            ->columns(1),
                     ]),
 
                 /* ------------------------------
@@ -205,9 +226,7 @@ class ProjectForm
 
             ])
             ->columnSpanFull()
-            ->skippable(), // Wizard default submit button will be displayed automatically
-
-
+            ->skippable(),
         ]);
     }
 }

@@ -29,30 +29,22 @@ class CreateProject extends CreateRecord
             ]);
         }
 
-        $this->processData = $data['process'] ?? [];
-
-        // SDG totals initialized
+        // initialize
+        $this->processData = [];
         $this->sdgTotals = [
-            'sdg3'  => 0,
-            'sdg6'  => 0,
-            'sdg7'  => 0,
-            'sdg8'  => 0,
-            'sdg9'  => 0,
-            'sdg11' => 0,
-            'sdg12' => 0,
-            'sdg13' => 0,
-            'sdg15' => 0,
+            'sdg3'  => 0, 'sdg6'  => 0, 'sdg7'  => 0,
+            'sdg8'  => 0, 'sdg9'  => 0, 'sdg11' => 0,
+            'sdg12' => 0, 'sdg13' => 0, 'sdg15' => 0,
         ];
 
-        // SDG max points
         $sdgMaxPoints = [
             'sdg3' => 10, 'sdg6' => 4, 'sdg7' => 9, 'sdg8' => 7,
             'sdg9' => 32, 'sdg11' => 7, 'sdg12' => 30, 'sdg13' => 4, 'sdg15' => 1,
         ];
 
-        // SDG mapping
+        // SDG mapping (same as your original)
         $sdgMap = [
-            'site_selection' => 'sdg11',
+            'site_selection' => 'sdg11,sdg15',
             'energy_preassessment' => 'sdg13',
             'water_strategy' => 'sdg11',
             'waste_plan' => 'sdg11',
@@ -119,14 +111,13 @@ class CreateProject extends CreateRecord
             'eol_impact' => 'sdg13',
         ];
 
-        // Helper function to calculate stage points and SDG totals
+        // Helper: calculate stage totals and per-sdg contributions
         $calculateStage = function(array $items, array $marks) use ($sdgMap) {
             $total = 0;
             $sdgPoints = [];
             foreach ($items as $item) {
                 $points = $marks[$item] ?? 0;
                 $total += $points;
-
                 if (!empty($sdgMap[$item])) {
                     $sdgs = array_map('trim', explode(',', $sdgMap[$item]));
                     $splitPoints = $points / count($sdgs);
@@ -138,7 +129,7 @@ class CreateProject extends CreateRecord
             return [$total, $sdgPoints];
         };
 
-        // Stage marks arrays
+        // Marks arrays (same as original)
         $marksInitiation = [
             'site_selection'=>2,'energy_preassessment'=>2,'water_strategy'=>2,
             'waste_plan'=>2,'sustainability_statement'=>1,'bim_simulation'=>3,
@@ -168,29 +159,63 @@ class CreateProject extends CreateRecord
             'audit_docs'=>2,'recycle_analysis'=>3,'eol_impact'=>2
         ];
 
-        // Calculate stages and SDG totals
-        [$this->processData['initiation'], $sdgStage] = $calculateStage($data['initiation_items'] ?? [], $marksInitiation);
-        foreach($sdgStage as $k=>$v) $this->sdgTotals[$k] += $v;
+        // --------------------------
+        // Initiation (from form field 'initiation_items')
+        // --------------------------
+        [$this->processData['initiation'], $sdgStage] =
+            $calculateStage($data['initiation_items'] ?? [], $marksInitiation);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
 
-        $planningItems = array_merge($data['planning_items_left'] ?? [], $data['planning_items_right'] ?? []);
-        [$this->processData['planning'], $sdgStage] = $calculateStage($planningItems, $marksPlanning);
-        foreach($sdgStage as $k=>$v) $this->sdgTotals[$k] += $v;
+        // --------------------------
+        // Planning (form uses 'planning_items')
+        // --------------------------
+        $planningItems = $data['planning_items'] ?? [];
+        [$this->processData['planning'], $sdgStage] =
+            $calculateStage($planningItems, $marksPlanning);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
 
-        [$this->processData['execution'], $sdgStage] = $calculateStage($this->processData['execution'] ?? [], $marksExecution);
-        foreach($sdgStage as $k=>$v) $this->sdgTotals[$k] += $v;
+        // --------------------------
+        // Execution (merge all process.execution_* arrays)
+        // Form sends execution under process.execution_env, process.execution_waste, etc.
+        // --------------------------
+        $executionItems = array_merge(
+            $data['process']['execution_env'] ?? [],
+            $data['process']['execution_waste'] ?? [],
+            $data['process']['execution_energy'] ?? [],
+            $data['process']['execution_water'] ?? [],
+            $data['process']['execution_ieq'] ?? [],
+        );
+        [$this->processData['execution'], $sdgStage] =
+            $calculateStage($executionItems, $marksExecution);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
 
-        [$this->processData['monitoring'], $sdgStage] = $calculateStage($this->processData['monitoring'] ?? [], $marksMonitoring);
-        foreach($sdgStage as $k=>$v) $this->sdgTotals[$k] += $v;
+        // --------------------------
+        // Monitoring (process.monitoring)
+        // --------------------------
+        $monitoringItems = $data['process']['monitoring'] ?? [];
+        [$this->processData['monitoring'], $sdgStage] =
+            $calculateStage($monitoringItems, $marksMonitoring);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
 
-        [$this->processData['closing'], $sdgStage] = $calculateStage($this->processData['closing'] ?? [], $marksClosing);
-        foreach($sdgStage as $k=>$v) $this->sdgTotals[$k] += $v;
+        // --------------------------
+        // Closing (process.closing)
+        // --------------------------
+        $closingItems = $data['process']['closing'] ?? [];
+        [$this->processData['closing'], $sdgStage] =
+            $calculateStage($closingItems, $marksClosing);
+        foreach ($sdgStage as $k => $v) $this->sdgTotals[$k] += $v;
 
-        // Cap SDG totals by max points
+        // cap SDG totals by max points and round
         foreach ($this->sdgTotals as $sdg => $points) {
             $this->sdgTotals[$sdg] = min(round($points), $sdgMaxPoints[$sdg]);
         }
 
-        unset($data['process'], $data['initiation_items'], $data['planning_items_left'], $data['planning_items_right']);
+        // remove large arrays from payload that are not needed in projects table
+        unset(
+            $data['process'],
+            $data['initiation_items'],
+            $data['planning_items']
+        );
 
         return $data;
     }
@@ -200,7 +225,11 @@ class CreateProject extends CreateRecord
         $projectId = $this->record->id;
 
         // --- Process status ---
-        $score = array_sum($this->processData);
+        $score = 0;
+        foreach (['initiation','planning','execution','monitoring','closing'] as $phase) {
+            $score += (int) ($this->processData[$phase] ?? 0);
+        }
+
         $processStatus = match (true) {
             $score >= 86 => 'PLATINUM',
             $score >= 76 => 'GOLD',
@@ -211,16 +240,16 @@ class CreateProject extends CreateRecord
 
         Process::create([
             'project_id' => $projectId,
-            'initiation' => $this->processData['initiation'] ?? 0,
-            'planning'   => $this->processData['planning'] ?? 0,
-            'execution'  => $this->processData['execution'] ?? 0,
-            'monitoring' => $this->processData['monitoring'] ?? 0,
-            'closing'    => $this->processData['closing'] ?? 0,
+            'initiation' => (int) ($this->processData['initiation'] ?? 0),
+            'planning'   => (int) ($this->processData['planning'] ?? 0),
+            'execution'  => (int) ($this->processData['execution'] ?? 0),
+            'monitoring' => (int) ($this->processData['monitoring'] ?? 0),
+            'closing'    => (int) ($this->processData['closing'] ?? 0),
             'status'     => $processStatus,
         ]);
 
-        // --- SDG status uses separate thresholds ---
-        $sdgScore = array_sum($this->sdgTotals);
+        // --- SDG status ---
+        $sdgScore = array_sum(array_map(fn($v) => (int)$v, $this->sdgTotals));
         $sdgStatus = match (true) {
             $sdgScore >= 89 => 'A',
             $sdgScore >= 69 => 'B',
@@ -229,9 +258,9 @@ class CreateProject extends CreateRecord
             default => 'FAIL',
         };
 
-        SDGStatus::create(array_merge([
-            'project_id' => $projectId,
-            'status' => $sdgStatus,
-        ], $this->sdgTotals));
+        SDGStatus::create(array_merge(
+            ['project_id' => $projectId, 'status' => $sdgStatus],
+            array_map(fn($v) => (int)$v, $this->sdgTotals)
+        ));
     }
 }

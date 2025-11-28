@@ -29,49 +29,26 @@ class UserProjectStats extends BaseWidget
             return $p?->project_name ?? 'Project Statistics';
         }
 
-        $project = Project::where('user_id', Auth::id())->latest()->first();
-
-        return $project?->project_name ?? 'Project Statistics';
+        // No project selected, show default heading
+        return 'Project Statistics';
     }
 
     protected function getStats(): array
     {
-        $userId = Auth::id();
+        $user = Auth::user();
 
-        // -------------------------
-        // 1. Count Total Projects
-        // -------------------------
-        $totalProjects = Project::where('user_id', $userId)->count();
-
-        // -------------------------
-        // 2. Get selected project OR latest project
-        // -------------------------
+        // Only get project if projectId is set
         $project = $this->projectId
-            ? Project::find($this->projectId)
-            : Project::where('user_id', $userId)->latest()->first();
+            ? Project::when($user->role !== 'admin', fn($q) => $q->where('user_id', $user->id))
+                     ->find($this->projectId)
+            : null;
 
         $projectId = $project?->id ?? null;
 
-        // -------------------------
-        // 3. Get first process for the selected project
-        // -------------------------
-        $process = $projectId
-            ? Process::where('project_id', $projectId)->first()
-            : null;
+        // Get process for this project if project exists
+        $process = $projectId ? Process::where('project_id', $projectId)->first() : null;
 
-        // -------------------------
-        // 4. Target (PLATINUM/GOLD/etc) from Project
-        // -------------------------
-        $latestTarget = $project?->target ?? 'N/A';
-
-        // -------------------------
-        // 5. Status (from Process if exists, else from Project)
-        // -------------------------
-        $status = $process?->status ?? $project?->status ?? 'N/A';
-
-        // -------------------------
-        // 6. Calculate process-based completion (%)
-        // -------------------------
+        // Compute completion
         $maxMarks = [
             'Initiation' => 17,
             'Planning'   => 31,
@@ -90,58 +67,63 @@ class UserProjectStats extends BaseWidget
 
         $totalMax = array_sum($maxMarks);
         $totalUserMark = array_sum($stepMarks);
+        $overallPercentage = $totalMax ? round(($totalUserMark / $totalMax) * 100, 1) : 0;
 
-        $overallPercentage = $totalMax
-            ? round(($totalUserMark / $totalMax) * 100, 1)
-            : 0;
+        // -----------------------
+        // Stats array
+        // -----------------------
+        $stats = [];
 
-        return [
-            // ------------------------------------
-            // STAT 1: Total Projects
-            // ------------------------------------
-            Stat::make('Total Projects', $totalProjects)
-                ->description('All projects you created')
-                ->descriptionIcon('heroicon-o-folder'),
+        // STAT 1
+           if ($user->role === 'admin') {
+    $stats[] = Stat::make(
+        $project?->project_name ?? 'N/A',
+        $project?->project_location ?? 'N/A'
+    )
+    ->description($project?->pic_contact ?? 'N/A');
+} else {
+    $totalProjects = Project::where('user_id', $user->id)->count();
 
-            // ------------------------------------
-            // STAT 2: Target (PLATINUM / GOLD / etc)
-            // ------------------------------------
-            Stat::make('Target', $latestTarget)
-                ->description('Target of selected project')
-                ->descriptionIcon('heroicon-o-flag')
-                ->color(match($latestTarget) {
-                    'PLATINUM' => 'success',
-                    'GOLD'     => 'warning',
-                    'SILVER'   => 'danger',
-                    'CERTIFIED'=> 'primary',
-                    default    => 'secondary',
-                }),
+    $stats[] = Stat::make('Total Projects', $totalProjects)
+        ->description('All projects you created')
+        ->descriptionIcon('heroicon-o-folder');
+}
 
-            // ------------------------------------
-            // STAT 3: Project Completion (%)
-            // ------------------------------------
-            Stat::make('Project Completion', $overallPercentage . '%')
-                ->description('Progress based on process marks')
-                ->descriptionIcon('heroicon-o-chart-pie')
-                ->color(
-                    $overallPercentage >= 80 ? 'success' :
-                    ($overallPercentage >= 50 ? 'warning' : 'danger')
-                ),
 
-            // ------------------------------------
-            // STAT 4: Status (from Process or Project)
-            // ------------------------------------
-            Stat::make('Status', $status)
-                ->description('Final status of selected project')
-                ->descriptionIcon('heroicon-o-check-circle')
-                ->color(match($status) {
-                    'PLATINUM'  => 'success',
-                    'GOLD'      => 'warning',
-                    'SILVER'    => 'primary',
-                    'CERTIFIED' => 'success',
-                    'FAIL'      => 'danger',
-                    default     => 'secondary',
-                }),
-        ];
+
+        // STAT 2: Target
+        $stats[] = Stat::make('Target', $project?->target ?? 'N/A')
+            ->description('Target of selected project')
+            ->descriptionIcon('heroicon-o-flag')
+            ->color(match($project?->target) {
+                'PLATINUM' => 'success',
+                'GOLD'     => 'warning',
+                'SILVER'   => 'danger',
+                'CERTIFIED'=> 'primary',
+                default    => 'secondary',
+            });
+
+        // STAT 3: Completion
+        $stats[] = Stat::make('Project Completion', $project ? $overallPercentage . '%' : 'N/A')
+            ->description('Progress based on process marks')
+            ->descriptionIcon('heroicon-o-chart-pie')
+            ->color($overallPercentage >= 80 ? 'success' :
+                   ($overallPercentage >= 50 ? 'warning' : 'danger'));
+
+        // STAT 4: Status
+        $status = $process?->status ?? $project?->status ?? 'N/A';
+        $stats[] = Stat::make('Status', $status)
+            ->description('Final status of selected project')
+            ->descriptionIcon('heroicon-o-check-circle')
+            ->color(match($status) {
+                'PLATINUM'  => 'success',
+                'GOLD'      => 'warning',
+                'SILVER'    => 'primary',
+                'CERTIFIED' => 'success',
+                'FAIL'      => 'danger',
+                default     => 'secondary',
+            });
+
+        return $stats;
     }
 }

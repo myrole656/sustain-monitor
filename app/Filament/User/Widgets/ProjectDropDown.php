@@ -22,35 +22,36 @@ class ProjectDropDown extends Widget implements HasForms
         $this->form->fill([
             'projectId' => null,
         ]);
-
-
-
-
-
-
-
-
-        
+      
     }
 
-    protected function getFormSchema(): array
-    {
-        return [
-            Select::make('projectId')
-                ->label('Select Project')
-                ->options(
-                    Project::where('user_id', Auth::id())
-                        ->pluck('project_name', 'id')
-                        ->toArray()
-                )
-                ->placeholder('Choose project')
-                ->reactive()
-                ->afterStateUpdated(function ($state) {
-                    $this->projectId = $state;
+   protected function getFormSchema(): array
+{
+    return [
+        Select::make('projectId')
+            ->label('Select Project')
+            ->options(function () {
+                $user = Auth::user();
 
-                    // Send event to SDG widget
-                    $this->dispatch('projectSelected', projectId: $state);
-                }),
-        ];
-    }
+                // If admin → show ALL projects
+                if ($user->role === 'admin') {
+                    return Project::pluck('project_name', 'id')->toArray();
+                }
+
+                // If normal user → show ONLY their projects
+                return Project::where('user_id', $user->id)
+                    ->pluck('project_name', 'id')
+                    ->toArray();
+            })
+            ->placeholder('Choose project')
+            ->reactive()
+            ->afterStateUpdated(function ($state) {
+                $this->projectId = $state;
+
+                // Send event to other widgets
+                $this->dispatch('projectSelected', projectId: $state);
+            }),
+    ];
+}
+
 }

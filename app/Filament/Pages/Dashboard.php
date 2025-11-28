@@ -13,7 +13,7 @@ class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
-            SdgChart::class, // Will be at top
+          
            
         ];
     }

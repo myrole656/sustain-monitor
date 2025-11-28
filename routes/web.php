@@ -20,14 +20,14 @@ Route::get('/', function () {
     return redirect()->route('login');
 })->name('home');
 
-Route::get('/test', function () {
+//Route::get('/test', function () {
  
-      $response = Prism::text()
-    ->using(Provider::Gemini, 'gemini-2.0-flash')
-    ->withPrompt('definition of gey') 
-    ->asText();
-    dd($response->text);
-})->name('test');
+   //   $response = Prism::text()
+   // ->using(Provider::Gemini, 'gemini-2.0-flash')
+   // ->withPrompt('definition of gey') 
+   // ->asText();
+  //  dd($response->text);
+//})->name('test');
 
 // Login
 Route::get('/login', [RoleLoginController::class, 'showLoginForm'])->name('login');

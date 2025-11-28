@@ -20,6 +20,9 @@ return new class extends Migration
             $table->date('reg_date')
             ->nullable();
 
+             $table->string('pic_name')
+            ->nullable(); // person in charge contact
+
             $table->string('pic_contact')
             ->nullable(); // person in charge contact
 

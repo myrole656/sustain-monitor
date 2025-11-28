@@ -55,15 +55,16 @@ class ProjectsTable
                 ->openUrlInNewTab(),
 
             Action::make('comment')
-                ->label('Impersonate')
+                ->label('Comment')
                 ->color('secondary')
                 ->icon('heroicon-o-users')
 
-                // --- FORM (EMPTY RANGKA) ---
+                // Only visible to admin
+                ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false) 
+
+                // --- FORM ---
                 ->form(function ($record) {
                     return [
-
-
                         Textarea::make('comment')
                             ->label('Make a comment')
                             ->required(),
@@ -75,19 +76,15 @@ class ProjectsTable
                 ->modalDescription('coment coment coment')
                 ->modalSubmitActionLabel('submit')
 
-                // --- ACTION (EMPTY RANGKA) ---
+                // --- ACTION ---
                 ->action(function (Action $action, array $data, $record) {
-                    
                     Notification::make()
-                        ->title('')
-                       
+                        ->title('Admin Comment')
                         ->icon('heroicon-o-users')
-
                         ->body($data['comment'])
                         ->sendToDatabase($record->user);
-                   
-                    
                 }),
+
 
         ]);
 }

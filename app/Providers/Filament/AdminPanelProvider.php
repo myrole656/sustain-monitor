@@ -29,7 +29,7 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
-            ->databaseNotifications()
+         
             ->discoverResources(
                 in: app_path('Filament/Resources'),
                 for: 'App\\Filament\\Resources'
@@ -42,12 +42,14 @@ class AdminPanelProvider extends PanelProvider
              \App\Filament\Widgets\StatsOverview::class,
             \App\Filament\Widgets\BlogPostsChart::class,
              \App\Filament\Widgets\SdgChart::class,
+             
             ])
 
             
            
             ->pages([
                 Dashboard::class, // Dashboard page
+                \App\Filament\Pages\ReportUser::class,
             ])
             
             ->middleware([
