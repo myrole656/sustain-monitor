@@ -38,13 +38,18 @@ class AdminPanelProvider extends PanelProvider
                 in: app_path('Filament/Pages'),
                 for: 'App\\Filament\\Pages'
             )
-           ->discoverWidgets(
-                in: app_path('Filament/Widgets'),
-                for: 'App\\Filament\\Widgets'
-            )
+            ->widgets([
+             \App\Filament\Widgets\StatsOverview::class,
+            \App\Filament\Widgets\BlogPostsChart::class,
+             \App\Filament\Widgets\SdgChart::class,
+            ])
+
+            
+           
             ->pages([
                 Dashboard::class, // Dashboard page
             ])
+            
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -58,6 +63,9 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class, // Ensure only authenticated users access this panel
-            ]);
+            ])
+
+              ->databaseNotifications()
+              ->databaseNotificationsPolling('1s');
     }
 }

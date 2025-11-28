@@ -62,6 +62,9 @@ class UserPanelProvider extends PanelProvider
                 \App\Http\Middleware\EnsureUserIsUser::class,
             ])
             
-            ;
+            
+
+              ->databaseNotifications()
+              ->databaseNotificationsPolling('1s');
     }
 }

@@ -50,28 +50,27 @@ class UserProjectStats extends BaseWidget
             ? Project::find($this->projectId)
             : Project::where('user_id', $userId)->latest()->first();
 
-        // Safety fallback
         $projectId = $project?->id ?? null;
 
         // -------------------------
-        // 3. Get Process for selected project
+        // 3. Get first process for the selected project
         // -------------------------
         $process = $projectId
             ? Process::where('project_id', $projectId)->first()
             : null;
 
         // -------------------------
-        // 4. Target (PLATINUM/GOLD/...)
+        // 4. Target (PLATINUM/GOLD/etc) from Project
         // -------------------------
         $latestTarget = $project?->target ?? 'N/A';
 
         // -------------------------
-        // 5. Status (From project)
+        // 5. Status (from Process if exists, else from Project)
         // -------------------------
-        $status = $project?->status ?? 'N/A';
+        $status = $process?->status ?? $project?->status ?? 'N/A';
 
         // -------------------------
-        // 6. Calculate process-based completion
+        // 6. Calculate process-based completion (%)
         // -------------------------
         $maxMarks = [
             'Initiation' => 17,
@@ -130,7 +129,7 @@ class UserProjectStats extends BaseWidget
                 ),
 
             // ------------------------------------
-            // STAT 4: Status (PLATINUM / GOLD / etc)
+            // STAT 4: Status (from Process or Project)
             // ------------------------------------
             Stat::make('Status', $status)
                 ->description('Final status of selected project')

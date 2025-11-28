@@ -7,11 +7,27 @@ use App\Http\Controllers\PDFController;
 
 use Filament\Notifications\Notification;
 use App\Http\Controllers\AdminNotificationController;
+use Filament\Notifications\Actions\Action;
+
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\Enums\Provider;
+
+
+
 
 // Home route
 Route::get('/', function () {
     return redirect()->route('login');
 })->name('home');
+
+Route::get('/test', function () {
+ 
+      $response = Prism::text()
+    ->using(Provider::Gemini, 'gemini-2.0-flash')
+    ->withPrompt('definition of gey') 
+    ->asText();
+    dd($response->text);
+})->name('test');
 
 // Login
 Route::get('/login', [RoleLoginController::class, 'showLoginForm'])->name('login');
@@ -43,6 +59,8 @@ Route::get('/pdf/project/{id}', [PDFController::class, 'projectReport'])
     Route::get('/admin/notifications/create', [AdminNotificationController::class, 'create'])->name('admin.notifications.create');
     Route::post('/admin/notifications/send', [AdminNotificationController::class, 'send'])->name('admin.notifications.send');
 });
+
+
 
 
 

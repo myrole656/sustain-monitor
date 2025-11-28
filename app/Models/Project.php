@@ -22,6 +22,10 @@ class Project extends Model
     {
         return $this->hasOne(Process::class);
     }
+     public function sdgStatus()
+    {
+        return $this->hasOne(SDGStatus::class, 'project_id', 'id');
+    }
 
     public function user()
     {

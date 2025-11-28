@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class RegisterController extends Controller
 {
@@ -13,17 +15,11 @@ class RegisterController extends Controller
     // Show Registration Forms
     // -------------------------------
 
-    /**
-     * Show the Admin registration form
-     */
     public function showAdminForm()
     {
         return view('auth.register-admin');
     }
 
-    /**
-     * Show the User registration form
-     */
     public function showUserForm()
     {
         return view('auth.register-user');
@@ -33,9 +29,6 @@ class RegisterController extends Controller
     // Handle Registration
     // -------------------------------
 
-    /**
-     * Handle Admin registration
-     */
     public function registerAdmin(Request $request)
     {
         $request->validate([
@@ -45,26 +38,46 @@ class RegisterController extends Controller
             'security_code' => 'required|string',
         ]);
 
-        // ✅ Replace this with your secret admin code
         $adminSecret = env('ADMIN_CODE', 'KDTMS1234');
 
         if ($request->security_code !== $adminSecret) {
-            return back()->withErrors(['security_code' => 'Invalid admin code'])->withInput();
+            return back()->withErrors([
+                'security_code' => 'Invalid admin code'
+            ])->withInput();
         }
 
-        User::create([
+        // Create the admin account
+        $newUser = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
             'role'     => 'admin',
             'password' => Hash::make($request->password),
         ]);
 
-        return redirect()->route('login')->with('success', 'Admin registered successfully!');
+        // ----------------------------
+        // Send notification safely
+        // ----------------------------
+        try {
+            // Notify all existing admins
+            $admins = User::where('role', 'admin')->get();
+
+            foreach ($admins as $admin) {
+                Notification::make()
+                    ->title('New Admin Registered')
+                    ->body("{$newUser->name} has registered as an admin.")
+                    ->icon('heroicon-o-user-plus')
+                    ->iconColor('success')
+                    ->sendToDatabase($admin);
+            }
+        } catch (\Exception $e) {
+            Log::error("Admin registration notification error: " . $e->getMessage());
+        }
+
+        return redirect()->route('login')
+            ->with('success', 'Admin registered successfully!');
     }
 
-    /**
-     * Handle User registration
-     */
+
     public function registerUser(Request $request)
     {
         $request->validate([
@@ -73,13 +86,34 @@ class RegisterController extends Controller
             'password' => 'required|confirmed|min:6',
         ]);
 
-        User::create([
+        // Create the user
+        $newUser = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
             'role'     => 'user',
             'password' => Hash::make($request->password),
         ]);
 
-        return redirect()->route('login')->with('success', 'User registered successfully!');
+        // ----------------------------
+        // Send notification safely
+        // ----------------------------
+
+        try {
+            $admins = User::where('role', 'admin')->get();
+
+            foreach ($admins as $admin) {
+                Notification::make()
+                    ->title('New User Registered')
+                    ->body("{$newUser->name} has registered as a user.")
+                    ->icon('heroicon-o-user')
+                    ->iconColor('info')
+                    ->sendToDatabase($admin);
+            }
+        } catch (\Exception $e) {
+            Log::error("User registration notification error: " . $e->getMessage());
+        }
+
+        return redirect()->route('login')
+            ->with('success', 'User registered successfully!');
     }
 }

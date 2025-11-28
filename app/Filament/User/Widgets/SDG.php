@@ -80,7 +80,7 @@ class SDG extends StatsOverviewWidget
 
             Stat::make('SDG 7: Affordable & Clean Energy', "{$sdgPoints['sdg7']}/{$sdgMaxPoints['sdg7']}")
                 ->description('Ensure access to affordable and sustainable energy')
-                ->descriptionIcon('heroicon-o-light-bulb')
+                ->descriptionIcon('heroicon-o-bolt')
                 ->color('info'),
 
             Stat::make('SDG 8: Decent Work & Economic Growth', "{$sdgPoints['sdg8']}/{$sdgMaxPoints['sdg8']}")
@@ -105,17 +105,17 @@ class SDG extends StatsOverviewWidget
 
             Stat::make('SDG 13: Climate Action', "{$sdgPoints['sdg13']}/{$sdgMaxPoints['sdg13']}")
                 ->description('Take urgent action to combat climate change')
-                 ->descriptionIcon('heroicon-o-light-bulb')
+                 ->descriptionIcon('heroicon-o-arrow-trending-up')
                 ->color('danger'),
 
             Stat::make('SDG 15: Life on Land', "{$sdgPoints['sdg15']}/{$sdgMaxPoints['sdg15']}")
                 ->description('Protect, restore and promote sustainable ecosystems')
-                 ->descriptionIcon('heroicon-o-light-bulb')
+                 ->descriptionIcon('heroicon-o-building-office-2')
                 ->color('info'),
 
             Stat::make('Project Status', $status)
                 ->description('Final grade of latest project')
-                ->descriptionIcon('heroicon-o-light-bulb')
+                ->descriptionIcon('heroicon-o-academic-cap')
                 ->color(match($status) {
                     'PLATINUM' => 'success',
                     'GOLD' => 'warning',

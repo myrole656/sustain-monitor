@@ -48,7 +48,7 @@
 
 <div class="bg-white shadow-lg rounded-xl w-full max-w-sm p-8">
     <div class="flex justify-center mb-6">
-        <img src="{{ asset('img/logo.jpg') }}" class="h-12" style="width: 120px; height: auto;">
+        <img src="{{ asset('img/logo.jpg') }}" class="h-12" style="width: 220px; height: auto;">
     </div>
 
     <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Login to Sustain Monitor</h2>
@@ -99,7 +99,7 @@
         <a href="{{ route('register.admin.page') }}" class="text-red-600 font-semibold hover:underline">Register as Admin</a>
     </p>
 
-    <p class="text-center text-gray-400 text-sm mt-6">&copy; {{ date('Y') }} KDTMS. All rights reserved.</p>
+    <p class="text-center text-gray-400 text-sm mt-6">&copy; {{ date('Y') }} SustainMonitor. All rights reserved.</p>
 </div>
 
 <script>

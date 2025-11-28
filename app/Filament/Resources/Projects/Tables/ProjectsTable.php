@@ -4,12 +4,14 @@ namespace App\Filament\Resources\Projects\Tables;
 
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Actions\EditAction;
 use Filament\Actions\DeleteAction;
 use Illuminate\Support\Facades\Auth;
 use Filament\Actions\Action;
 use App\Models\Project;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 
 class ProjectsTable
@@ -50,7 +52,42 @@ class ProjectsTable
                 ->label('PDF')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->url(fn ($record) => route('pdf.project', $record->id))
-                ->openUrlInNewTab()
+                ->openUrlInNewTab(),
+
+            Action::make('comment')
+                ->label('Impersonate')
+                ->color('secondary')
+                ->icon('heroicon-o-users')
+
+                // --- FORM (EMPTY RANGKA) ---
+                ->form(function ($record) {
+                    return [
+
+
+                        Textarea::make('comment')
+                            ->label('Make a comment')
+                            ->required(),
+                    ];
+                })
+
+                ->requiresConfirmation()
+                ->modalHeading('Give your comment')
+                ->modalDescription('coment coment coment')
+                ->modalSubmitActionLabel('submit')
+
+                // --- ACTION (EMPTY RANGKA) ---
+                ->action(function (Action $action, array $data, $record) {
+                    
+                    Notification::make()
+                        ->title('')
+                       
+                        ->icon('heroicon-o-users')
+
+                        ->body($data['comment'])
+                        ->sendToDatabase($record->user);
+                   
+                    
+                }),
 
         ]);
 }
