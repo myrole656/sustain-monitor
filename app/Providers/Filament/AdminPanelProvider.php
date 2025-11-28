@@ -26,8 +26,15 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             // No ->login() since we use custom login
-            ->colors([
+
+          
+             ->colors([
                 'primary' => Color::Amber,
+                'success' => Color::Green,
+                'danger'  => Color::Red,
+                'warning' => Color::Amber,
+                'info'    => Color::Blue,
+                'gray'    => Color::Zinc,
             ])
          
             ->discoverResources(

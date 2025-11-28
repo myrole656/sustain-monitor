@@ -9,6 +9,7 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use App\Filament\Resources\Projects\ProjectResource;
 use App\Filament\User\Pages\Dashboard;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -25,27 +26,41 @@ class UserPanelProvider extends PanelProvider
             ->default()
             ->id('user')
             ->path('user')
+
+            // ✅ Set your custom panel colors here
             ->colors([
                 'primary' => Color::Amber,
+                'success' => Color::Green,
+                'danger'  => Color::Red,
+                'warning' => Color::Amber,
+                'info'    => Color::Blue,
+                'gray'    => Color::Zinc,
             ])
-        
 
-            ->discoverResources(
-                in: app_path('Filament/Resources'),
-                for: 'App\\Filament\\Resources'
-            )
+            // Resources available in this panel
+            ->resources([
+                ProjectResource::class,
+            ])
+
+            // Discover pages automatically
             ->discoverPages(
                 in: app_path('Filament/Pages'),
                 for: 'App\\User\\Filament\\Pages'
             )
+
+            // Discover widgets automatically
             ->discoverWidgets(
                 in: app_path('Filament/User/Widgets'),
                 for: 'App\\Filament\\User\\Widgets'
             )
+
+            // Explicit pages
             ->pages([
                 Dashboard::class,
-                 \App\Filament\User\Pages\ProjectStatus::class,
+                \App\Filament\User\Pages\ProjectStatus::class,
             ])
+
+            // Middleware
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -57,14 +72,15 @@ class UserPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
+
+            // Authentication
             ->authMiddleware([
                 Authenticate::class,
                 \App\Http\Middleware\EnsureUserIsUser::class,
             ])
-            
-            
 
-              ->databaseNotifications()
-              ->databaseNotificationsPolling('1s');
+            // Notifications
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('1s');
     }
 }

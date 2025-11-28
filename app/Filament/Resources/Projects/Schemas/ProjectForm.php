@@ -10,7 +10,7 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Hidden;
-use Illuminate\Validation\Rule;
+use App\Models\Question;
 
 class ProjectForm
 {
@@ -18,215 +18,197 @@ class ProjectForm
 
     public static function configure(Schema $schema): Schema
     {
+        // Get all enabled steps from admin control
+        $enabledSteps = Question::where('enabled', true)->pluck('step_name')->toArray();
+
+        $wizardSteps = [];
+
+        // ------------------------------
+        // STEP 1 – PROJECT INFO
+        // ------------------------------
+        if (in_array('Project Info', $enabledSteps)) {
+            $wizardSteps[] = Step::make('Project Info')
+                ->icon('heroicon-o-clipboard-document')
+                ->schema([
+                    TextInput::make('project_name')->label('Project Name')->required(),
+                    TextInput::make('project_location')->label('Project Location'),
+                    TextInput::make('pic_name')->label('PIC Name'),
+                    TextInput::make('pic_contact')->label('PIC Contact'),
+                    Select::make('target')->label('Certification Target')->options([
+                        'PLATINUM' => 'PLATINUM',
+                        'GOLD' => 'GOLD',
+                        'SILVER' => 'SILVER',
+                        'CERTIFICATE' => 'CERTIFICATE',
+                    ])->required(),
+                    DatePicker::make('reg_date')->label('Registration Date'),
+                    Hidden::make('user_id')->default(fn () => auth()->id()),
+                ])->columns(2);
+        }
+
+        // ------------------------------
+        // STEP 2 – INITIATION
+        // ------------------------------
+        if (in_array('Initiation', $enabledSteps)) {
+            $wizardSteps[] = Step::make('Initiation')
+                ->icon('heroicon-o-rocket-launch')
+                ->schema([
+                    CheckboxList::make('initiation_items')
+                        ->label('Initiation Checklist')
+                        ->options([
+                            'site_selection' => 'Site selection complies with low-impact development principles.',
+                            'energy_preassessment' => 'Preliminary energy performance pre-assessment completed.',
+                            'water_strategy' => 'Initial water-reduction strategy prepared.',
+                            'waste_plan' => 'Early waste-minimisation plan drafted.',
+                            'sustainability_statement' => 'Sustainability Intent Statement submitted.',
+                            'bim_simulation' => 'Initial site environmental simulation using BIM completed.',
+                            'environment_simulations' => 'Environmental and site simulations conducted (sun, wind, terrain).',
+                            'clash_free_bim' => 'Clash-free planning validated using BIM.',
+                        ])->columns(1)->required(),
+                ]);
+        }
+
+        // ------------------------------
+        // STEP 3 – PLANNING
+        // ------------------------------
+        if (in_array('Planning', $enabledSteps)) {
+            $wizardSteps[] = Step::make('Planning')
+                ->icon('heroicon-o-map')
+                ->schema([
+                    CheckboxList::make('planning_items')
+                        ->label('Planning Phase Checklist')
+                        ->options([
+                            'energy_modelling' => 'BIM-based energy modelling completed.',
+                            'passive_design' => 'Passive design strategies incorporated.',
+                            'high_eff' => 'High-efficiency M&E systems selected.',
+                            'rain_harvest' => 'Rainwater harvesting integrated.',
+                            'greywater' => 'Greywater recycling system designed.',
+                            'daylight' => 'Daylighting simulation meets standards.',
+                            'ventiation' => 'Natural ventilation strategy incorporated.',
+                            'low_carbon' => 'Low-carbon materials specified.',
+                            'const_waste' => 'BIM-based quantity optimisation.',
+                            'green_land' => 'Green landscape plan prepared.',
+                            'heat_strategy' => 'Heat island mitigation included.',
+                            'thermal_model' => 'Thermal modelling completed.',
+                            'water_eff' => 'Water efficiency simulation done.',
+                            'mats_lifecycle' => 'Life-cycle assessment (LCA) conducted.',
+                        ])->columns(2)->required(),
+                ]);
+        }
+
+        // ------------------------------
+        // STEP 4 – EXECUTION
+        // ------------------------------
+        if (in_array('Execution', $enabledSteps)) {
+            $wizardSteps[] = Step::make('Execution')
+                ->icon('heroicon-o-cog-6-tooth')
+                ->columns(5)
+                ->schema([
+                    // Column 1 – Environmental Protection
+                    CheckboxList::make('process.execution_env')
+                        ->label('1. Environmental Protection')
+                        ->options([
+                            'smart_energy' => 'Dust, noise, and pollution monitoring implemented.',
+                            'ctrl_measure' => 'Erosion and sedimentation control measures in place.',
+                            'li_design' => 'Low-impact design compliance.',
+                            'se_ctrl' => 'Green area erosion control.',
+                            'avoid' => 'Flood-zone avoidance reviewed.',
+                            'basic_access' => 'Access to public transport ensured.',
+                        ])->columns(1),
+
+                    // Column 2 – Waste & Material Sustainability
+                    CheckboxList::make('process.execution_waste')
+                        ->label('2. Waste & Material Sustainability')
+                        ->options([
+                            'waste_tracking' => 'Real-time waste tracking.',
+                            'perecentage_recycled' => 'Recycled materials tracked.',
+                            'my_hijau' => 'Green-certified materials used.',
+                            'useof_recycle' => 'Recycled/local materials used.',
+                            'recyce_rate' => 'Achieved 50% recycling.',
+                            'reduce_waste' => 'Prefabricated components used.',
+                            'voc' => 'Low-VOC materials used.',
+                        ])->columns(1),
+
+                    // Column 3 – Energy Efficiency
+                    CheckboxList::make('process.execution_energy')
+                        ->label('3. Energy Efficiency')
+                        ->options([
+                            'led' => 'LED lighting installed.',
+                            'motion_sensors' => 'Motion sensors installed.',
+                            'hvac_systems' => 'Efficient HVAC installed.',
+                            'renewable_energy' => 'Renewables installed.',
+                            'energy_management' => 'Smart energy management system.',
+                            'energy_star' => 'MS 1525 compliance.',
+                            'bas_integrated' => 'BAS integrated.',
+                            'energy_eff' => 'Efficient building envelope.',
+                        ])->columns(1),
+
+                    // Column 4 – Water Efficiency
+                    CheckboxList::make('process.execution_water')
+                        ->label('4. Water Efficiency')
+                        ->options([
+                            'tolerat_landscape' => 'Drought-tolerant landscaping.',
+                            'bathroom_pantry' => 'Low-flow fixtures installed.',
+                            'water_eff' => 'Water-efficient systems.',
+                            'water_consumpt' => 'Water reduction achieved.',
+                            'water_monitor' => 'Water monitoring installed.',
+                            'water_leakage' => 'Leak detection system.',
+                        ])->columns(1),
+
+                    // Column 5 – Indoor Environmental Quality (IEQ)
+                    CheckboxList::make('process.execution_ieq')
+                        ->label('5. Indoor Environmental Quality (IEQ)')
+                        ->options([
+                            'ventilation_light' => 'Good ventilation & lighting.',
+                            'ieq_standard' => 'IEQ standards achieved.',
+                        ])->columns(1),
+                ]);
+        }
+
+        // ------------------------------
+        // STEP 5 – MONITORING
+        // ------------------------------
+        if (in_array('Monitoring', $enabledSteps)) {
+            $wizardSteps[] = Step::make('Monitoring')
+                ->icon('heroicon-o-chart-bar')
+                ->schema([
+                    CheckboxList::make('process.monitoring')
+                        ->label('Monitoring Phase')
+                        ->options([
+                            'smart_energy' => 'Smart energy meters.',
+                            'build_performance' => 'Monthly reviews.',
+                            'air_quaity' => 'IAQ sensors monitored.',
+                            'thermal_comfort' => 'Thermal comfort maintained.',
+                            'cleaning_mats' => 'Green cleaning materials.',
+                            'sustain' => 'Sustainability-aligned maintenance.',
+                        ])->columns(1)->required(),
+                ]);
+        }
+
+        // ------------------------------
+        // STEP 6 – CLOSING
+        // ------------------------------
+        if (in_array('Closing', $enabledSteps)) {
+            $wizardSteps[] = Step::make('Closing')
+                ->icon('heroicon-o-lock-closed')
+                ->schema([
+                    CheckboxList::make('process.closing')
+                        ->label('Closing Phase Checklist')
+                        ->options([
+                            'mats_salvage' => 'Material salvage inventory.',
+                            'recyclable_percentage' => 'Recyclable material requirements met.',
+                            'waste_segregation' => 'Waste segregation implemented.',
+                            'audit_docs' => 'Audit documents prepared.',
+                            'recycle_analysis' => 'Recycling performance analysed.',
+                            'eol_impact' => 'End-of-life impact simulation.',
+                        ])->columns(1)->required(),
+                ]);
+        }
+
+        // ------------------------------
+        // Return the wizard
+        // ------------------------------
         return $schema->components([
-            Wizard::make([
-
-                /* ------------------------------
-                |  STEP 1 – PROJECT INFO
-                --------------------------------*/
-                Step::make('Project Info')
-                    ->icon('heroicon-o-clipboard-document')
-                    ->schema([
-                        TextInput::make('project_name')
-                            ->label('Project Name')
-                            ->required()
-                            ->rules([
-                                Rule::unique('projects', 'project_name')
-                                    ->where(fn ($query) => $query->where('user_id', auth()->id())),
-                            ]),
-
-                        TextInput::make('project_location')
-                            ->label('Project Location'),
-
-                        TextInput::make('pic_name')
-                            ->label('PIC Name'),
-
-                        TextInput::make('pic_contact')
-                            ->label('PIC Contact'),
-
-                        Select::make('target')
-                            ->label('Certification Target')
-                            ->options([
-                                'PLATINUM'    => 'PLATINUM',
-                                'GOLD'        => 'GOLD',
-                                'SILVER'      => 'SILVER',
-                                'CERTIFICATE' => 'CERTIFICATE',
-                            ])
-                            ->required(),
-
-                        DatePicker::make('reg_date')
-                            ->label('Registration Date'),
-
-                        Hidden::make('user_id')->default(fn () => auth()->id()),
-                    ])
-                    ->columns(2),
-
-                /* ------------------------------
-                |  STEP 2 – INITIATION
-                --------------------------------*/
-                Step::make('Initiation')
-                    ->icon('heroicon-o-rocket-launch')
-                    ->schema([
-                        CheckboxList::make('initiation_items')
-                            ->label('Initiation Checklist')
-                            ->options([
-                                'site_selection' => 'Site selection complies with low-impact development principles.',
-                                'energy_preassessment' => 'Preliminary energy performance pre-assessment completed.',
-                                'water_strategy' => 'Initial water-reduction strategy prepared.',
-                                'waste_plan' => 'Early waste-minimisation plan drafted.',
-                                'sustainability_statement' => 'Sustainability Intent Statement submitted.',
-                                'bim_simulation' => 'Initial site environmental simulation using BIM completed.',
-                                'environment_simulations' => 'Environmental and site simulations conducted (sun, wind, terrain).',
-                                'clash_free_bim' => 'Clash-free planning validated using BIM.',
-                            ])
-                            ->columns(1)
-                            ->required(),
-                    ]),
-
-                /* ------------------------------
-                |  STEP 3 – PLANNING
-                --------------------------------*/
-                Step::make('Planning')
-                    ->icon('heroicon-o-map')
-                    ->schema([
-                        CheckboxList::make('planning_items')
-                            ->label('Planning Phase Checklist')
-                            ->options([
-                                'energy_modelling' => 'BIM-based energy modelling completed.',
-                                'passive_design' => 'Passive design strategies incorporated.',
-                                'high_eff' => 'High-efficiency M&E systems selected.',
-                                'rain_harvest' => 'Rainwater harvesting integrated.',
-                                'greywater' => 'Greywater recycling system designed.',
-                                'daylight' => 'Daylighting simulation meets standards.',
-                                'ventiation' => 'Natural ventilation strategy incorporated.',
-                                'low_carbon' => 'Low-carbon materials specified.',
-                                'const_waste' => 'BIM-based quantity optimisation.',
-                                'green_land' => 'Green landscape plan prepared.',
-                                'heat_strategy' => 'Heat island mitigation included.',
-                                'thermal_model' => 'Thermal modelling completed.',
-                                'water_eff' => 'Water efficiency simulation done.',
-                                'mats_lifecycle' => 'Life-cycle assessment (LCA) conducted.',
-                            ])
-                            ->columns(2)
-                            ->required(),
-                    ]),
-
-                /* ------------------------------
-                |  STEP 4 – EXECUTION
-                --------------------------------*/
-                Step::make('Execution')
-                    ->icon('heroicon-o-cog-6-tooth')
-                    ->columns(5)
-                    ->schema([
-
-                        // COLUMN 1 — Environmental Protection
-                        CheckboxList::make('process.execution_env')
-                            ->label('1. Environmental Protection')
-                            ->options([
-                                'smart_energy' => 'Dust, noise, and pollution monitoring implemented.',
-                                'ctrl_measure' => 'Erosion and sedimentation control measures in place.',
-                                'li_design' => 'Low-impact design compliance.',
-                                'se_ctrl' => 'Green area erosion control.',
-                                'avoid' => 'Flood-zone avoidance reviewed.',
-                                'basic_access' => 'Access to public transport ensured.',
-                            ])
-                            ->columns(1),
-
-                        // COLUMN 2 — Waste & Material Sustainability
-                        CheckboxList::make('process.execution_waste')
-                            ->label('2. Waste & Material Sustainability')
-                            ->options([
-                                'waste_tracking' => 'Real-time waste tracking.',
-                                'perecentage_recycled' => 'Recycled materials tracked.',
-                                'my_hijau' => 'Green-certified materials used.',
-                                'useof_recycle' => 'Recycled/local materials used.',
-                                'recyce_rate' => 'Achieved 50% recycling.',
-                                'reduce_waste' => 'Prefabricated components used.',
-                                'voc' => 'Low-VOC materials used.',
-                            ])
-                            ->columns(1),
-
-                        // COLUMN 3 — Energy Efficiency
-                        CheckboxList::make('process.execution_energy')
-                            ->label('3. Energy Efficiency')
-                            ->options([
-                                'led' => 'LED lighting installed.',
-                                'motion_sensors' => 'Motion sensors installed.',
-                                'hvac_systems' => 'Efficient HVAC installed.',
-                                'renewable_energy' => 'Renewables installed.',
-                                'energy_management' => 'Smart energy management system.',
-                                'energy_star' => 'MS 1525 compliance.',
-                                'bas_integrated' => 'BAS integrated.',
-                                'energy_eff' => 'Efficient building envelope.',
-                            ])
-                            ->columns(1),
-
-                        // COLUMN 4 — Water Efficiency
-                        CheckboxList::make('process.execution_water')
-                            ->label('4. Water Efficiency')
-                            ->options([
-                                'tolerat_landscape' => 'Drought-tolerant landscaping.',
-                                'bathroom_pantry' => 'Low-flow fixtures installed.',
-                                'water_eff' => 'Water-efficient systems.',
-                                'water_consumpt' => 'Water reduction achieved.',
-                                'water_monitor' => 'Water monitoring installed.',
-                                'water_leakage' => 'Leak detection system.',
-                            ])
-                            ->columns(1),
-
-                        // COLUMN 5 — Indoor Environmental Quality (IEQ)
-                        CheckboxList::make('process.execution_ieq')
-                            ->label('5. Indoor Environmental Quality (IEQ)')
-                            ->options([
-                                'ventilation_light' => 'Good ventilation & lighting.',
-                                'ieq_standard' => 'IEQ standards achieved.',
-                            ])
-                            ->columns(1),
-                    ]),
-
-                /* ------------------------------
-                |  STEP 5 – MONITORING
-                --------------------------------*/
-                Step::make('Monitoring')
-                    ->icon('heroicon-o-chart-bar')
-                    ->schema([
-                        CheckboxList::make('process.monitoring')
-                            ->label('Monitoring Phase')
-                            ->options([
-                                'smart_energy' => 'Smart energy meters.',
-                                'build_performance' => 'Monthly reviews.',
-                                'air_quaity' => 'IAQ sensors monitored.',
-                                'thermal_comfort' => 'Thermal comfort maintained.',
-                                'cleaning_mats' => 'Green cleaning materials.',
-                                'sustain' => 'Sustainability-aligned maintenance.',
-                            ])
-                            ->columns(1)
-                            ->required(),
-                    ]),
-
-                /* ------------------------------
-                |  STEP 6 – CLOSING
-                --------------------------------*/
-                Step::make('Closing')
-                    ->icon('heroicon-o-lock-closed')
-                    ->schema([
-                        CheckboxList::make('process.closing')
-                            ->label('Closing Phase Checklist')
-                            ->options([
-                                'mats_salvage' => 'Material salvage inventory.',
-                                'recyclable_percentage' => 'Recyclable material requirements met.',
-                                'waste_segregation' => 'Waste segregation implemented.',
-                                'audit_docs' => 'Audit documents prepared.',
-                                'recycle_analysis' => 'Recycling performance analysed.',
-                                'eol_impact' => 'End-of-life impact simulation.',
-                            ])
-                            ->columns(1)
-                            ->required(),
-                    ]),
-
-            ])
-            ->columnSpanFull()
-            ->skippable(),
+            Wizard::make($wizardSteps)->columnSpanFull()->skippable()
         ]);
     }
 }

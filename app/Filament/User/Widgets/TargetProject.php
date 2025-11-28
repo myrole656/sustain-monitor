@@ -3,7 +3,7 @@
 namespace App\Filament\User\Widgets;
 
 use Filament\Widgets\ChartWidget;
-use App\Models\Project; // <-- REQUIRED
+use App\Models\Project;
 use App\Models\Process;
 use Illuminate\Support\Facades\Auth;
 
@@ -11,7 +11,7 @@ class TargetProject extends ChartWidget
 {
     protected ?string $heading = 'Target Project Recommendation';
 
-    public ?int $projectId = null;    // ADD THIS (required)
+    public ?int $projectId = null;
 
     protected $listeners = ['projectSelected' => 'updateProject'];
 
@@ -29,7 +29,6 @@ class TargetProject extends ChartWidget
         }
 
         $project = Project::where('user_id', Auth::id())->latest()->first();
-
         return $project?->project_name ?? 'Project Process Completion';
     }
 
@@ -38,24 +37,21 @@ class TargetProject extends ChartWidget
         return 'bar';
     }
 
-    
     protected function getData(): array
     {
         $userId = Auth::id();
 
         $process = Process::when(
-                $this->projectId,
-                fn($q) => $q->where('project_id', $this->projectId)
-            )
-            ->when(
-                !$this->projectId,
-                fn($q) => $q->whereHas('project', fn($p) => $p->where('user_id', $userId))
-                    ->latest()
-            )
-            ->first();
+            $this->projectId,
+            fn($q) => $q->where('project_id', $this->projectId)
+        )
+        ->when(
+            !$this->projectId,
+            fn($q) => $q->whereHas('project', fn($p) => $p->where('user_id', $userId))->latest()
+        )
+        ->first();
 
-
-        // Max marks per stage
+        // Max marks per phase
         $maxMarks = [
             'Initiation' => 17,
             'Planning'   => 31,
@@ -76,10 +72,19 @@ class TargetProject extends ChartWidget
         $totalMax = array_sum($maxMarks);
         $totalCurrent = array_sum($currentMarks);
 
+        // Determine current status
+        $processStatus = match (true) {
+            $totalCurrent >= 86 => 'PLATINUM',
+            $totalCurrent >= 76 => 'GOLD',
+            $totalCurrent >= 66 => 'SILVER',
+            $totalCurrent >= 50 => 'CERTIFIED',
+            default => 'FAIL',
+        };
+
         // Project target threshold
         $target = $process?->project?->target ?? 'N/A';
 
-        $targetScore = match($target) {
+        $targetScore = match ($target) {
             'PLATINUM' => 86,
             'GOLD'     => 76,
             'SILVER'   => 66,
@@ -87,19 +92,28 @@ class TargetProject extends ChartWidget
             default    => 0,
         };
 
-        // Compute required marks remaining
+        // Required marks to reach target
         $remainingScore = max(0, $targetScore - $totalCurrent);
 
-        // Proportionally distribute remaining marks per stage
+        // ----------------------------
+        // Minimum Recommended Marks Logic
+        // ----------------------------
         $recommendedMarks = [];
+
         foreach ($maxMarks as $stage => $max) {
             $current = $currentMarks[$stage];
+
+            // Weight based on stage max marks
             $proportion = $max / $totalMax;
-            $recommended = min($max, $current + round($remainingScore * $proportion));
-            $recommendedMarks[$stage] = $recommended;
+
+            // Add proportional required marks
+            $recommended = $current + round($remainingScore * $proportion);
+
+            // Cap at maximum possible
+            $recommendedMarks[$stage] = min($recommended, $max);
         }
 
-        // Prepare labels and data
+        // Chart Data
         $labels = [];
         $data = [];
         $colors = [];
@@ -107,10 +121,11 @@ class TargetProject extends ChartWidget
         foreach ($maxMarks as $stage => $max) {
             $obtained = $currentMarks[$stage];
             $recommended = $recommendedMarks[$stage];
+
             $labels[] = "{$stage} ({$obtained}/{$max})";
             $data[] = $recommended;
 
-            // Color: green if achieved target proportion, yellow if still needed
+            // Colors: Green = complete, Yellow = needs improvement
             $colors[] = $recommended >= $max ? '#22c55e' : '#facc15';
         }
 
@@ -118,7 +133,7 @@ class TargetProject extends ChartWidget
             'labels' => $labels,
             'datasets' => [
                 [
-                    'label' => "Recommended Marks to Reach {$target}",
+                    'label' => "Minimum Marks Needed to Reach {$target} (Current Status: {$processStatus})",
                     'data' => $data,
                     'backgroundColor' => $colors,
                 ],

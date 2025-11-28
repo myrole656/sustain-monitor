@@ -17,20 +17,19 @@ return new class extends Migration
 
             $table->string('project_location')->nullable();
 
-            $table->date('reg_date')
-            ->nullable();
+            $table->date('reg_date')->nullable();
 
-             $table->string('pic_name')
-            ->nullable(); // person in charge contact
+            $table->string('pic_name')->nullable(); 
+            $table->string('pic_contact')->nullable(); 
 
-            $table->string('pic_contact')
-            ->nullable(); // person in charge contact
+            $table->string('target')->nullable();      
 
-            $table->string('target')->nullable();      // project target/output
+            // Allow only "approved" or "pending"
+              $table->enum('status', ['approved', 'pending', 'none'])->default('none');
 
             $table->foreignId('user_id')
-            ->constrained('users')
-            ->cascadeOnDelete();
+                  ->constrained('users')
+                  ->cascadeOnDelete();
             
             $table->timestamps();
         });

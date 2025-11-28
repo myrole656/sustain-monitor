@@ -13,8 +13,10 @@ class Project extends Model
         'project_name',
         'project_location',
         'reg_date',
+        'pic_name',
         'pic_contact',
         'target',
+        'status',
         'user_id',
     ];
 
@@ -31,14 +33,5 @@ class Project extends Model
     {
         return $this->belongsTo(User::class);
     }
-    protected static function booted()
-{
-    static::updated(function ($project) {
-        if ($project->isDirty('status')) { // Only when status changes
-            $project->user->notify(
-                new \App\Notifications\ProjectStatusNotification($project->name, $project->status)
-            );
-        }
-    });
-}
+    
 }

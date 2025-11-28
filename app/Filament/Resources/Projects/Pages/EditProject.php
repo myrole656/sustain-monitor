@@ -11,6 +11,8 @@ use Filament\Exceptions\FormsValidationException;
 class EditProject extends EditRecord
 {
     protected static string $resource = ProjectResource::class;
+    protected static ?string $title = 'Re-Attempt Project'; // Page heading
+
 
     protected array $processData = [];
     protected array $sdgTotals = [];
@@ -122,40 +124,47 @@ class EditProject extends EditRecord
     }
 
     protected function afterSave(): void
-    {
-        $projectId = $this->record->id;
+{
+    $projectId = $this->record->id;
 
-        // Calculate process score
-        $score = array_sum($this->phaseTotals);
-        $processStatus = match (true) {
-            $score >= 86 => 'PLATINUM',
-            $score >= 76 => 'GOLD',
-            $score >= 66 => 'SILVER',
-            $score >= 50 => 'CERTIFIED',
-            default => 'FAIL',
-        };
+    // Calculate process score
+    $score = array_sum($this->phaseTotals);
+    $processStatus = match (true) {
+        $score >= 86 => 'PLATINUM',
+        $score >= 76 => 'GOLD',
+        $score >= 66 => 'SILVER',
+        $score >= 50 => 'CERTIFIED',
+        default => 'FAIL',
+    };
 
-        // Save Process
-        Process::updateOrCreate(
-            ['project_id' => $projectId],
-            array_merge($this->phaseTotals, $this->processData, ['status' => $processStatus])
-        );
+    // Save Process
+    Process::updateOrCreate(
+        ['project_id' => $projectId],
+        array_merge($this->phaseTotals, $this->processData, ['status' => $processStatus])
+    );
 
-        // Save SDG
-        $sdgScore = array_sum(array_map(fn($v)=> (int)$v, $this->sdgTotals));
-        $sdgStatus = match (true) {
-            $sdgScore >= 89 => 'A',
-            $sdgScore >= 69 => 'B',
-            $sdgScore >= 49 => 'C',
-            $sdgScore >= 40 => 'D',
-            default => 'FAIL',
-        };
+    // Save SDG
+    $sdgScore = array_sum(array_map(fn($v)=> (int)$v, $this->sdgTotals));
+    $sdgStatus = match (true) {
+        $sdgScore >= 89 => 'A',
+        $sdgScore >= 69 => 'B',
+        $sdgScore >= 49 => 'C',
+        $sdgScore >= 40 => 'D',
+        default => 'FAIL',
+    };
 
-        SDGStatus::updateOrCreate(
-            ['project_id' => $projectId],
-            array_merge(array_map(fn($v) => (int)$v, $this->sdgTotals), ['status'=>$sdgStatus])
-        );
-    }
+    SDGStatus::updateOrCreate(
+        ['project_id' => $projectId],
+        array_merge(array_map(fn($v) => (int)$v, $this->sdgTotals), ['status'=>$sdgStatus])
+    );
+
+    // -------------------------------------------------
+    // Reset project status to a valid value for re-attempt
+    // -------------------------------------------------
+    $this->record->update([
+        'status' => 'none', // replace with your ENUM default or re-attempt value
+    ]);
+}
 
     // ---------------------------------------------------------
     // HELPER FUNCTIONS
@@ -272,3 +281,4 @@ class EditProject extends EditRecord
         ];
     }
 }
+ 
