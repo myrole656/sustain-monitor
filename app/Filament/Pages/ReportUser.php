@@ -18,7 +18,12 @@ class ReportUser extends Page
     protected string $view = 'filament.pages.report-user';
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-users';
 
-     protected function getHeaderWidgets(): array
+    public function getColumns(): array | int | string
+    {
+        return 12; // enable 12-column grid
+    }
+
+    protected function getHeaderWidgets(): array
     {
         return [
             ProjectDropDown::class,
@@ -30,7 +35,8 @@ class ReportUser extends Page
         ];
     }
 
-     public function getWidgetColumnSpan(): array
+    // ✅ Correct method for header widget column spans
+    public function getHeaderWidgetsColumnSpan(): array
     {
         return [
             ProjectDropDown::class => 6,
