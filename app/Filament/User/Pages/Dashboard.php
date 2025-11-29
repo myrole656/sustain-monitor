@@ -7,6 +7,7 @@ use App\Filament\User\Widgets\ResultChart;
 use App\Filament\User\Widgets\ProjectDropDown;
 use App\Filament\User\Widgets\UserProjectStats;
 use App\Filament\User\Widgets\TargetProject;
+use App\Filament\User\Widgets\OpenPdfWidget;
 
 
 class Dashboard extends BaseDashboard
@@ -18,6 +19,7 @@ class Dashboard extends BaseDashboard
         return [
             
             ProjectDropDown::class,
+            OpenPdfWidget::class,
             UserProjectStats::class,
             ResultChart::class,
             TargetProject::class,

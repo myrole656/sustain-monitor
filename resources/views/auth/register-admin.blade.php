@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KDTMS | Register Admin</title>
+<title>Sustain Monitor  | Register Admin</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
     .floating-input { position: relative; }

@@ -9,6 +9,7 @@ use App\Filament\User\Widgets\UserProjectStats;
 use App\Filament\User\Widgets\ResultChart;
 use App\Filament\User\Widgets\TargetProject;
 use App\Filament\User\Widgets\SDG;
+use App\Filament\User\Widgets\OpenPdfWidget;
 use UnitEnum; 
 use BackedEnum;
 
@@ -21,6 +22,7 @@ class ReportUser extends Page
     {
         return [
             ProjectDropDown::class,
+            OpenPdfWidget::class,
             UserProjectStats::class,
             ResultChart::class,
             TargetProject::class,
