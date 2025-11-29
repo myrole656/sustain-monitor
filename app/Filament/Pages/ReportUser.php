@@ -29,4 +29,12 @@ class ReportUser extends Page
             SDG::class,
         ];
     }
+
+     public function getWidgetColumnSpan(): array
+    {
+        return [
+            ProjectDropDown::class => 6,
+            OpenPdfWidget::class => 6,
+        ];
+    }
 }
