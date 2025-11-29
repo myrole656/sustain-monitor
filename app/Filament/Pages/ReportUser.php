@@ -3,14 +3,12 @@
 namespace App\Filament\Pages;
 
 use Filament\Pages\Page;
-use App\Filament\Widgets\UserInfo;
 use App\Filament\User\Widgets\ProjectDropDown;
 use App\Filament\User\Widgets\UserProjectStats;
 use App\Filament\User\Widgets\ResultChart;
 use App\Filament\User\Widgets\TargetProject;
 use App\Filament\User\Widgets\SDG;
 use App\Filament\User\Widgets\OpenPdfWidget;
-use UnitEnum; 
 use BackedEnum;
 
 class ReportUser extends Page
@@ -18,9 +16,10 @@ class ReportUser extends Page
     protected string $view = 'filament.pages.report-user';
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-users';
 
-    public function getColumns(): array | int | string
+    // FIXED signature
+    public function getColumns(): array | int
     {
-        return 12; // enable 12-column grid
+        return 12;
     }
 
     protected function getHeaderWidgets(): array
@@ -35,7 +34,7 @@ class ReportUser extends Page
         ];
     }
 
-    // ✅ Correct method for header widget column spans
+    // Correct header widget span function
     public function getHeaderWidgetsColumnSpan(): array
     {
         return [

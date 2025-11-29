@@ -13,8 +13,8 @@ class Dashboard extends BaseDashboard
 {
     protected static ?string $title = 'Dashboard';
 
-    // Enable 12-column grid
-    public function getColumns(): array | int | string
+    // FIXED signature
+    public function getColumns(): array | int
     {
         return 12;
     }
@@ -30,12 +30,12 @@ class Dashboard extends BaseDashboard
         ];
     }
 
-    // Assign column span for widgets
+    // Column spans for dashboard widgets
     public function getWidgetColumnSpan(): array
     {
         return [
-            ProjectDropDown::class => 6,   // left side
-            OpenPdfWidget::class => 6,     // right side
+            ProjectDropDown::class => 6,
+            OpenPdfWidget::class => 6,
         ];
     }
 }
