@@ -1,0 +1,91 @@
+@page "/projects/{Id:int}/board"
+@inject ApiClient Api
+
+<PageTitle>Board · Sustain Monitor</PageTitle>
+
+@if (_p is null)
+{
+    <Alert Text="@_error" />
+    @if (_error is null) { <Loading /> }
+}
+else
+{
+    <ProjectHeader Project="_p" Active="board">
+        @if (_p.MyRole == CompanyRole.ProjectManager && _p.Current is not null)
+        {
+            <a class="btn" href="/projects/@_p.Id/tickets/new"><Icon Name="plus" /> New CO-ticket</a>
+        }
+    </ProjectHeader>
+
+    @if (_board is null)
+    {
+        <Loading />
+    }
+    else
+    {
+        <p class="muted">
+            @switch (_board.MyRole)
+            {
+                case CompanyRole.ProjectManager: <text>You move tickets from Open to In review once evidence is attached. A Superior then approves or rejects.</text> break;
+                case CompanyRole.Superior: <text>Tickets in "In review" are waiting for you. Open one to check the evidence and approve or reject it.</text> break;
+                default: <text>You can follow every ticket here. Project Managers do the work and Superiors approve it.</text> break;
+            }
+        </p>
+        <div class="board">
+            @foreach (var col in _board.Columns)
+            {
+                <section class="col col-@col.Status">
+                    <div class="col-head"><span>@Labels.Of(col.Status)</span><span class="badge">@col.Tickets.Count</span></div>
+                    @if (col.Tickets.Count == 0)
+                    {
+                        <small>No tickets</small>
+                    }
+                    @foreach (var t in col.Tickets)
+                    {
+                        <a class="tcard" href="/tickets/@t.Id">
+                            <div class="row-between">
+                                <span class="tcard-key">@t.Key</span>
+                                <span class="pts">@(t.PointsAwardedOnClose is { } a ? $"+{a}" : $"+{t.PointsAtStake}") pts</span>
+                            </div>
+                            <div class="tcard-title">@t.Title</div>
+                            <div class="tcard-meta">
+                                <span class="badge">@t.Criterion</span>
+                                <span class="prio-@t.Priority">● @t.Priority</span>
+                                @if (t.Evidence > 0)
+                                {
+                                    <span><Icon Name="file" Size="14" /> @t.Evidence</span>
+                                }
+                                @if (t.DueDate is not null)
+                                {
+                                    <span>Due @Labels.Date(t.DueDate)</span>
+                                }
+                            </div>
+                            @if (t.AllowedMoves.Count > 0)
+                            {
+                                <div class="mt-1"><small style="color:var(--brand);font-weight:600">Your move: @string.Join(" / ", t.AllowedMoves.Select(m => Labels.Move(col.Status, m)))</small></div>
+                            }
+                        </a>
+                    }
+                </section>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private ProjectDetail? _p;
+    private Board? _board;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var p = await Api.GetAsync<ProjectDetail>($"api/projects/{Id}");
+        _p = p.Value;
+        _error = p.Error;
+        if (_p is null) return;
+        var b = await Api.GetAsync<Board>($"api/projects/{Id}/tickets");
+        _board = b.Value;
+        _error ??= b.Error;
+    }
+}

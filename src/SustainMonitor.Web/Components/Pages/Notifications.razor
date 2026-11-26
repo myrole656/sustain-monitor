@@ -1,0 +1,74 @@
+@page "/notifications"
+@inject ApiClient Api
+
+<PageTitle>Notifications · Sustain Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Notifications</h1>
+        <p>Updates on your company, tickets and e-certificates. The same messages are sent by email.</p>
+    </div>
+    @if (_items?.Any(n => n.ReadAt is null) == true)
+    {
+        <button class="btn btn-ghost" @onclick="ReadAllAsync"><Icon Name="check" /> Mark all as read</button>
+    }
+</div>
+
+<Alert Text="@_error" />
+@if (_items is null)
+{
+    <Loading />
+}
+else if (_items.Count == 0)
+{
+    <div class="card empty"><Icon Name="bell" Size="34" /><h3 class="mt-1">Nothing yet</h3><p>You'll see updates here as work moves.</p></div>
+}
+else
+{
+    <div class="card">
+        <table class="table">
+            @foreach (var n in _items)
+            {
+                <tr style="@(n.ReadAt is null ? "background:#f3faf7" : "")">
+                    <td style="width:12px">@if (n.ReadAt is null) { <span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--brand)"></span> }</td>
+                    <td>
+                        <b>@n.Subject</b>
+                        <div class="muted">@n.Message</div>
+                    </td>
+                    <td class="nowrap right"><small>@Labels.When(n.CreatedAt)</small>
+                        @if (n.ReadAt is null)
+                        {
+                            <br /><button class="btn-link" style="font-size:.82rem" @onclick="() => ReadAsync(n)">Mark read</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </table>
+    </div>
+}
+
+@code {
+    private List<NotificationDto>? _items;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var r = await Api.GetAsync<List<NotificationDto>>("api/notifications");
+        _items = r.Value ?? [];
+        _error = r.Error;
+    }
+
+    private async Task ReadAsync(NotificationDto n)
+    {
+        await Api.PostAsync($"api/notifications/{n.Id}/read");
+        await LoadAsync();
+    }
+
+    private async Task ReadAllAsync()
+    {
+        await Api.PostAsync("api/notifications/read-all");
+        await LoadAsync();
+    }
+}

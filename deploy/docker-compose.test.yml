@@ -1,0 +1,9 @@
+# Test deployment (GitHub Actions / local): exposes the API on 8081 and the website on 8080, no Caddy.
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build api web
+services:
+  api:
+    ports:
+      - "8081:8080"
+  web:
+    ports:
+      - "8080:8080"

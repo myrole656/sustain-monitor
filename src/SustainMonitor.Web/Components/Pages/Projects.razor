@@ -1,0 +1,38 @@
+@page "/projects"
+@inject ApiClient Api
+@inject AuthSession Session
+
+<PageTitle>Projects · Sustain Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Projects</h1>
+        <p>Every project is scored against its GBI tool. Open one to see its score, board and e-certs.</p>
+    </div>
+    @if (Session.IsPm)
+    {
+        <a class="btn" href="/projects/new"><Icon Name="plus" /> New project</a>
+    }
+</div>
+
+<Alert Text="@_error" />
+@if (_projects is null)
+{
+    <Loading />
+}
+else
+{
+    <ProjectGrid Projects="_projects" CanCreate="Session.IsPm" />
+}
+
+@code {
+    private List<ProjectListItem>? _projects;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var r = await Api.GetAsync<List<ProjectListItem>>("api/projects");
+        _projects = r.Value ?? [];
+        _error = r.Error;
+    }
+}

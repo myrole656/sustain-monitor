@@ -1,0 +1,10 @@
+@if (!string.IsNullOrWhiteSpace(Text))
+{
+    <div class="alert alert-@Kind" role="@(Kind == "error" ? "alert" : "status")">@Text</div>
+}
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    /// <summary>error | success | info | warn</summary>
+    [Parameter] public string Kind { get; set; } = "error";
+}

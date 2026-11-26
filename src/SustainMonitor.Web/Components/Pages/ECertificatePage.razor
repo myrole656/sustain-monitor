@@ -1,0 +1,98 @@
+@page "/ecerts/{Id:int}"
+@inject ApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>E-certificate · Sustain Monitor</PageTitle>
+
+@if (_c is null)
+{
+    <Alert Text="@_error" />
+    @if (_error is null) { <Loading /> }
+}
+else
+{
+    <div class="row-between mb-2 no-print">
+        <div class="crumbs"><a href="/projects">Projects</a> / @_c.ProjectCode / E-certificate</div>
+        <div class="row">
+            @if (_c.VerifyToken is not null)
+            {
+                <a class="btn btn-ghost" href="@VerifyUrl" target="_blank" rel="noopener"><Icon Name="shield" /> Public check page</a>
+            }
+            <button class="btn" @onclick="PrintAsync"><Icon Name="printer" /> Print / Save as PDF</button>
+        </div>
+    </div>
+
+    @if (_c.PublicStatus != "Valid")
+    {
+        <Alert Kind="warn" Text="@($"This certificate is {_c.PublicStatus.ToLowerInvariant()}.")" />
+    }
+
+    <div class="cert-page">
+        <div class="cert">
+            <div class="cert-top">
+                <div>
+                    <div class="cert-kicker">GBI-aligned self-assessment e-certificate</div>
+                    <h1>Certificate of Sustainability Assessment</h1>
+                    <div class="muted">No. <b>@_c.CertNo</b></div>
+                </div>
+                <div class="brand" style="color:var(--brand);padding:0"><BrandMark /> <span>Sustain Monitor</span></div>
+            </div>
+
+            <div class="cert-company">@_c.Company</div>
+            <div class="muted">SSM @_c.SsmNo · CIDB @_c.CidbGrade</div>
+            <p class="mt-1">has been assessed for the project <b>@_c.Project</b>@(_c.Location is not null ? $", {_c.Location}" : "") against the <b>GBI @_c.ToolCode v@(_c.ToolVersion)</b> criteria, with all points confirmed through reviewed evidence.</p>
+
+            <div class="cert-grid">
+                <div><div class="stat-label">GBI points</div><div class="cert-big">@_c.Points<small style="font-size:1rem;color:var(--ink-3)"> / 100</small></div></div>
+                <div><div class="stat-label">Rating band</div><div class="mt-1"><span class="rating rating-@_c.Rating.ToLowerInvariant()" style="font-size:1.1rem;padding:.35rem 1rem">@_c.Rating</span></div></div>
+                <div><div class="stat-label">Valid</div><div class="mt-1"><b>@Labels.Date(_c.IssuedAt)</b><br /><small>until @Labels.Date(_c.ExpiresAt)</small></div></div>
+            </div>
+
+            <div class="catbars">
+                @foreach (var cat in _c.Categories)
+                {
+                    <div class="catbar">
+                        <span class="catbar-code">@cat.Code</span>
+                        <div class="catbar-track"><div class="catbar-fill" style="width:@(cat.MaxPoints == 0 ? 0 : cat.Points * 100 / cat.MaxPoints)%"></div></div>
+                        <span class="catbar-val">@cat.Points / @cat.MaxPoints</span>
+                    </div>
+                }
+            </div>
+
+            <div class="cert-foot">
+                <div class="cert-disclaimer">
+                    @_c.Disclaimer Scan the QR code or visit the address below to confirm this certificate is genuine and still valid.
+                    <br /><span style="word-break:break-all">@VerifyUrl</span>
+                </div>
+                <div id="qr" class="qr"></div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private ECertPrint? _c;
+    private string? _error;
+    private bool _qrDrawn;
+
+    private string VerifyUrl => $"{Nav.BaseUri.TrimEnd('/')}/verify/{_c?.VerifyToken}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var r = await Api.GetAsync<ECertPrint>($"api/ecerts/{Id}");
+        _c = r.Value;
+        _error = r.Error;
+        _qrDrawn = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_c?.VerifyToken is null || _qrDrawn) return;
+        _qrDrawn = true;
+        await JS.InvokeVoidAsync("sm.qr", "qr", VerifyUrl);
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("sm.print");
+}

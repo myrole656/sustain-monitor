@@ -1,0 +1,147 @@
+@page "/admin/ecerts"
+@inject ApiClient Api
+@inject AuthSession Session
+
+<PageTitle>E-cert requests · Admin · Sustain Monitor</PageTitle>
+
+@if (!Session.IsPlatformAdmin)
+{
+    <Alert Kind="warn" Text="Platform admins only." />
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>E-certificates</h1>
+            <p>Requests come from projects whose GBI analysis scored 50+ points. Approving issues a 3-year certificate with a public QR check.</p>
+        </div>
+    </div>
+
+    <div class="row mb-2">
+        @foreach (var f in Filters)
+        {
+            <button class="btn btn-sm @(_filter == f ? "" : "btn-ghost")" @onclick="() => SetFilterAsync(f)">@(f?.ToString() ?? "All")</button>
+        }
+    </div>
+
+    <Alert Text="@_error" />
+    <Alert Kind="success" Text="@_ok" />
+
+    @if (_items is null)
+    {
+        <Loading />
+    }
+    else if (_items.Count == 0)
+    {
+        <div class="card empty"><h3>Nothing here</h3></div>
+    }
+    else
+    {
+        <div class="card table-wrap">
+            <table class="table">
+                <thead><tr><th>Company / project</th><th>Tool</th><th class="num">Points</th><th>Rating</th><th>Requested</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var c in _items)
+                    {
+                        <tr>
+                            <td><b>@c.Company</b><br /><small>@c.ProjectCode · @c.Project</small></td>
+                            <td>GBI @c.ToolCode v@(c.ToolVersion)</td>
+                            <td class="num"><b>@c.Points</b></td>
+                            <td><RatingBadge Rating="@c.Rating" /></td>
+                            <td>@Labels.Date(c.RequestedAt)</td>
+                            <td>
+                                <span class="badge @Css(c.Status)">@c.Status</span>
+                                @if (c.CertNo is not null) { <br /><small>@c.CertNo</small> }
+                                @if (c.DecisionNote is not null) { <br /><small>@c.DecisionNote</small> }
+                            </td>
+                            <td class="right nowrap">
+                                @if (c.Status == ECertStatus.Requested)
+                                {
+                                    <button class="btn btn-ok btn-sm" @onclick="() => ApproveAsync(c)"><Icon Name="award" /> Approve</button>
+                                    <button class="btn btn-ghost btn-sm" @onclick='() => Ask(c, "decline")'>Decline</button>
+                                }
+                                @if (c.Status == ECertStatus.Issued)
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick='() => Ask(c, "revoke")'>Revoke</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (_target is not null)
+    {
+        <div class="overlay" @onclick="() => _target = null">
+            <div class="dialog" @onclick:stopPropagation>
+                <h2>@(_action == "decline" ? "Decline request" : "Revoke certificate")</h2>
+                <p class="muted">@_target.Company · @_target.Project. The CEO and Project Managers see this reason.</p>
+                <textarea @bind="_reason" placeholder="Reason"></textarea>
+                <div class="dialog-actions">
+                    <button class="btn btn-ghost" @onclick="() => _target = null">Cancel</button>
+                    <button class="btn btn-danger" disabled="@string.IsNullOrWhiteSpace(_reason)" @onclick="ConfirmAsync">@(_action == "decline" ? "Decline" : "Revoke")</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private static readonly ECertStatus?[] Filters = [ECertStatus.Requested, ECertStatus.Issued, ECertStatus.Declined, ECertStatus.Revoked, null];
+    private ECertStatus? _filter = ECertStatus.Requested;
+    private List<AdminECert>? _items;
+    private AdminECert? _target;
+    private string _action = "";
+    private string? _reason, _error, _ok;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var url = _filter is null ? "api/admin/ecerts" : $"api/admin/ecerts?status={_filter}";
+        var r = await Api.GetAsync<List<AdminECert>>(url);
+        _items = r.Value ?? [];
+        _error = r.Error;
+    }
+
+    private async Task SetFilterAsync(ECertStatus? f)
+    {
+        _filter = f;
+        _items = null;
+        await LoadAsync();
+    }
+
+    private async Task ApproveAsync(AdminECert c)
+    {
+        _ok = _error = null;
+        var r = await Api.PostAsync($"api/admin/ecerts/{c.Id}/approve");
+        if (r.Ok) _ok = $"Issued for {c.Company} · {c.Project}."; else _error = r.Error;
+        await LoadAsync();
+    }
+
+    private void Ask(AdminECert c, string action)
+    {
+        _target = c;
+        _action = action;
+        _reason = null;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_target is null) return;
+        _ok = _error = null;
+        var r = await Api.PostAsync($"api/admin/ecerts/{_target.Id}/{_action}", new { reason = _reason });
+        if (r.Ok) _ok = _action == "decline" ? "Request declined." : "Certificate revoked."; else _error = r.Error;
+        _target = null;
+        await LoadAsync();
+    }
+
+    private static string Css(ECertStatus s) => s switch
+    {
+        ECertStatus.Issued => "badge-ok",
+        ECertStatus.Requested => "badge-warn",
+        _ => "badge-danger",
+    };
+}

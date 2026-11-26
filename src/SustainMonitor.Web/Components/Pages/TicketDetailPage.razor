@@ -1,0 +1,275 @@
+@page "/tickets/{Id:int}"
+@inject ApiClient Api
+@inject AuthSession Session
+@inject IJSRuntime JS
+
+<PageTitle>@(_t?.Key ?? "Ticket") · Sustain Monitor</PageTitle>
+
+@if (_t is null)
+{
+    <Alert Text="@_error" />
+    @if (_error is null) { <Loading /> }
+}
+else
+{
+    <div class="crumbs"><a href="/projects">Projects</a> / <a href="/projects/@_t.ProjectId/board">Board</a> / @_t.Key</div>
+    <div class="page-head">
+        <div>
+            <div class="row">
+                <span class="project-code">@_t.Key</span>
+                <span class="badge @StatusCss(_t.Status)">@Labels.Of(_t.Status)</span>
+            </div>
+            <h1 class="mt-1">@_t.Title</h1>
+            <p>@_t.Criterion.Code @_t.Criterion.Name@if (_t.Criterion.ReferenceUrl is not null) { <text> · </text><a href="@_t.Criterion.ReferenceUrl" target="_blank" rel="noopener">GBI reference</a> }</p>
+        </div>
+        <div class="row">
+            @foreach (var move in _t.AllowedMoves)
+            {
+                var to = move;
+                if (to == TicketStatus.Done)
+                {
+                    <button class="btn btn-ok" @onclick="() => { _dialog = Dialog.Approve; _pointsGained = _t.PointsAtStake; }"><Icon Name="check" /> Approve</button>
+                }
+                else if (_t.Status == TicketStatus.InReview && to == TicketStatus.InProgress)
+                {
+                    <button class="btn btn-danger" @onclick="() => _dialog = Dialog.Reject"><Icon Name="x" /> Reject</button>
+                }
+                else
+                {
+                    <button class="btn @(to == TicketStatus.Open ? "btn-ghost" : "")" disabled="@_busy" @onclick="() => MoveAsync(to, null, null)">@Labels.Move(_t.Status, to)</button>
+                }
+            }
+        </div>
+    </div>
+
+    <Alert Text="@_actionError" />
+    @if (_score is not null)
+    {
+        <Alert Kind="success" Text="@($"Approved. Project score {_score.Before.TotalPoints} → {_score.After.TotalPoints} points ({_score.After.Rating}){(_score.RatingChanged ? $", up from {_score.Before.Rating}" : "")}.")" />
+    }
+    @if (_t.Status == TicketStatus.InProgress && _t.Evidence.Count == 0 && Session.IsPm)
+    {
+        <Alert Kind="info" Text="Upload at least one evidence file before sending this ticket for review." />
+    }
+
+    <div class="grid grid-main">
+        <div>
+            <div class="card">
+                <h2>Details</h2>
+                <p>@(string.IsNullOrWhiteSpace(_t.Description) ? "No description." : _t.Description)</p>
+                <div class="grid grid-3 mt-1">
+                    <div class="stat"><span class="stat-label">Points at stake</span><span class="stat-value pts">+@_t.PointsAtStake</span></div>
+                    <div class="stat"><span class="stat-label">Points awarded</span><span class="stat-value">@(_t.PointsAwardedOnClose?.ToString() ?? "—")</span></div>
+                    <div class="stat"><span class="stat-label">Criterion max</span><span class="stat-value">@_t.Criterion.MaxPoints</span></div>
+                </div>
+                <table class="table mt-2">
+                    <tr><th>Priority</th><td class="prio-@_t.Priority">● @_t.Priority</td><th>Type</th><td>@_t.Type</td></tr>
+                    <tr><th>Raised by</th><td>@_t.Reporter</td><th>Reviewed by</th><td>@(string.IsNullOrEmpty(_t.Reviewer) ? "—" : _t.Reviewer)</td></tr>
+                    <tr><th>Created</th><td>@Labels.Date(_t.CreatedAt)</td><th>Due</th><td>@Labels.Date(_t.DueDate)</td></tr>
+                    @if (_t.ClosedAt is not null)
+                    {
+                        <tr><th>Approved</th><td colspan="3">@Labels.When(_t.ClosedAt)</td></tr>
+                    }
+                </table>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <h2>Evidence</h2>
+                    <small>@_t.Evidence.Count file@(_t.Evidence.Count == 1 ? "" : "s")</small>
+                </div>
+                @if (_t.Evidence.Count == 0)
+                {
+                    <small>No evidence yet.</small>
+                }
+                else
+                {
+                    <table class="table">
+                        <thead><tr><th>File</th><th>Stage</th><th>Uploaded</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var e in _t.Evidence)
+                            {
+                                <tr>
+                                    <td><Icon Name="file" /> @e.FileName</td>
+                                    <td>@Labels.Of(e.Stage)</td>
+                                    <td>@e.UploadedBy<br /><small>@Labels.When(e.UploadedAt)</small></td>
+                                    <td class="right"><button class="btn btn-ghost btn-sm" @onclick="() => DownloadAsync(e)"><Icon Name="download" /> Download</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                @if (Session.IsPm && _t.Status is TicketStatus.Open or TicketStatus.InProgress)
+                {
+                    <div class="row mt-2">
+                        <select @bind="_stage" style="width:auto">
+                            @foreach (var s in Enum.GetValues<AssessmentStage>())
+                            {
+                                <option value="@s">@Labels.Of(s)</option>
+                            }
+                        </select>
+                        <InputFile OnChange="UploadAsync" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.csv" disabled="@_uploading" />
+                        @if (_uploading) { <div class="spinner"></div> }
+                    </div>
+                    <small>PDF, images, Word, Excel or CSV, up to 20 MB.</small>
+                    <Alert Text="@_uploadError" />
+                }
+            </div>
+
+            <div class="card">
+                <h2>Comments</h2>
+                <div class="grid" style="gap:.6rem">
+                    @foreach (var c in _t.Comments)
+                    {
+                        <div class="comment"><b>@c.Author</b> <small>· @Labels.When(c.CreatedAt)</small><div>@c.Body</div></div>
+                    }
+                    @if (_t.Comments.Count == 0) { <small>No comments yet.</small> }
+                </div>
+                <form class="form mt-2" @onsubmit="CommentAsync" @onsubmit:preventDefault>
+                    <textarea @bind="_comment" placeholder="Add a comment for the team"></textarea>
+                    <div class="right"><button class="btn btn-ghost btn-sm" type="submit" disabled="@(string.IsNullOrWhiteSpace(_comment))"><Icon Name="message" /> Comment</button></div>
+                </form>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <h2>Activity</h2>
+                <ul class="timeline">
+                    @foreach (var h in _t.History.OrderByDescending(h => h.ChangedAt))
+                    {
+                        <li>
+                            <span class="dot"></span>
+                            <div>
+                                <b>@h.ChangedBy</b> moved it from @Pretty(h.OldValue) to @Pretty(h.NewValue)
+                                <br /><small>@Labels.When(h.ChangedAt)</small>
+                            </div>
+                        </li>
+                    }
+                    <li><span class="dot"></span><div><b>@_t.Reporter</b> created the ticket<br /><small>@Labels.When(_t.CreatedAt)</small></div></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    @if (_dialog == Dialog.Approve)
+    {
+        <div class="overlay" @onclick="() => _dialog = Dialog.None">
+            <div class="dialog" @onclick:stopPropagation>
+                <h2>Approve @_t.Key</h2>
+                <p class="muted">How many points does the evidence earn on @_t.Criterion.Code? The project is re-scored straight away.</p>
+                <div class="field">
+                    <label for="gain">Points gained (0 to @_t.PointsAtStake)</label>
+                    <input id="gain" type="number" min="0" max="@_t.PointsAtStake" @bind="_pointsGained" />
+                </div>
+                <div class="dialog-actions">
+                    <button class="btn btn-ghost" @onclick="() => _dialog = Dialog.None">Cancel</button>
+                    <button class="btn btn-ok" disabled="@_busy" @onclick="() => MoveAsync(TicketStatus.Done, _pointsGained, null)"><Icon Name="check" /> Approve and re-score</button>
+                </div>
+            </div>
+        </div>
+    }
+    @if (_dialog == Dialog.Reject)
+    {
+        <div class="overlay" @onclick="() => _dialog = Dialog.None">
+            <div class="dialog" @onclick:stopPropagation>
+                <h2>Reject @_t.Key</h2>
+                <p class="muted">The ticket goes back to the Project Manager. Say what is missing.</p>
+                <textarea @bind="_note" placeholder="e.g. Utility bills for the last 2 months are missing"></textarea>
+                <div class="dialog-actions">
+                    <button class="btn btn-ghost" @onclick="() => _dialog = Dialog.None">Cancel</button>
+                    <button class="btn btn-danger" disabled="@(_busy || string.IsNullOrWhiteSpace(_note))" @onclick="() => MoveAsync(TicketStatus.InProgress, null, _note)"><Icon Name="x" /> Reject</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private enum Dialog { None, Approve, Reject }
+
+    private TicketDetail? _t;
+    private ScoreChange? _score;
+    private Dialog _dialog;
+    private int _pointsGained;
+    private string? _note, _comment;
+    private AssessmentStage _stage = AssessmentStage.CompletionVerification;
+    private string? _error, _actionError, _uploadError;
+    private bool _busy, _uploading;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var r = await Api.GetAsync<TicketDetail>($"api/tickets/{Id}");
+        _t = r.Value;
+        _error = r.Error;
+    }
+
+    private async Task MoveAsync(TicketStatus to, int? points, string? note)
+    {
+        _actionError = null;
+        _busy = true;
+        try
+        {
+            var r = await Api.PostAsync<MoveResult>($"api/tickets/{Id}/move", new { to, pointsGained = points, note });
+            if (!r.Ok) { _actionError = r.Error; return; }
+            _score = r.Value?.Score;
+            _dialog = Dialog.None;
+            _note = null;
+            await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs e)
+    {
+        _uploadError = null;
+        _uploading = true;
+        try
+        {
+            const long max = 20 * 1024 * 1024;
+            if (e.File.Size > max) { _uploadError = "File is larger than 20 MB."; return; }
+            await using var stream = e.File.OpenReadStream(max);
+            var r = await Api.UploadAsync<CreatedRef>($"api/tickets/{Id}/evidence?stage={_stage}", stream, e.File.Name, e.File.ContentType);
+            if (!r.Ok) { _uploadError = r.Error; return; }
+            await LoadAsync();
+        }
+        finally { _uploading = false; }
+    }
+
+    private async Task DownloadAsync(EvidenceDto e)
+    {
+        var (content, error) = await Api.DownloadAsync($"api/tickets/{Id}/evidence/{e.Id}");
+        if (content is null) { _actionError = error; return; }
+        using var streamRef = new DotNetStreamReference(content);
+        await JS.InvokeVoidAsync("sm.downloadFromStream", e.FileName, streamRef);
+    }
+
+    private async Task CommentAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_comment)) return;
+        var r = await Api.PostAsync($"api/tickets/{Id}/comments", new { body = _comment });
+        if (!r.Ok) { _actionError = r.Error; return; }
+        _comment = null;
+        await LoadAsync();
+    }
+
+    private static string Pretty(string? v)
+    {
+        if (string.IsNullOrEmpty(v)) return "—";
+        var parts = v.Split(':', 2);
+        var label = Enum.TryParse<TicketStatus>(parts[0], out var s) ? Labels.Of(s) : parts[0];
+        return parts.Length == 2 ? $"{label} (“{parts[1].Trim()}”)" : label;
+    }
+
+    private static string StatusCss(TicketStatus s) => s switch
+    {
+        TicketStatus.Done => "badge-ok",
+        TicketStatus.InReview => "badge-warn",
+        TicketStatus.InProgress => "badge-info",
+        _ => "",
+    };
+}

@@ -1,0 +1,26 @@
+@* A 0–100 GBI scale with the rating band boundaries, the confirmed score as a solid bar
+   and the projected score (open tickets) as a lighter extension. *@
+<div class="scorebar" role="img" aria-label="@($"Confirmed {Confirmed} points, projected {Projected} points out of 100")">
+    <div class="scorebar-track">
+        <div class="scorebar-projected" style="width:@Pct(Projected)%"></div>
+        <div class="scorebar-confirmed" style="width:@Pct(Confirmed)%"></div>
+        @foreach (var b in Bands)
+        {
+            <div class="scorebar-tick" style="left:@b.At%"></div>
+        }
+    </div>
+    <div class="scorebar-labels">
+        @foreach (var b in Bands)
+        {
+            <span style="left:@b.At%">@b.At <small>@b.Name</small></span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Confirmed { get; set; }
+    [Parameter] public int Projected { get; set; }
+
+    private static readonly (int At, string Name)[] Bands = [(50, "Certified"), (66, "Silver"), (76, "Gold"), (86, "Platinum")];
+    private static int Pct(int v) => Math.Clamp(v, 0, 100);
+}

@@ -1,0 +1,229 @@
+### Sustain Monitor — full flow, step by step.
+### Run each request in order (Visual Studio: "Send request"; VS Code: REST Client extension).
+### Before starting: set the admin in user-secrets (see README) and run the API.
+### Criterion ids below assume a fresh database (NREB seeded first). Check GET /api/tools/1 if unsure:
+### EE1–EE9 = 1–9, EQ1–EQ15 = 10–24, SM1–SM7 = 25–31, MR1–MR6 = 32–37, WE1–WE5 = 38–42, IN1–IN2 = 43–44.
+
+@api = https://localhost:7180
+@adminEmail = admin@sustainmonitor.local
+@adminPassword = ChangeMe123456
+@ceoEmail = ceo@binaanhijau.my
+@pmEmail = pm@binaanhijau.my
+@supEmail = superior@binaanhijau.my
+@pwd = Binaan2026Hijau
+
+### 0. Health
+GET {{api}}/health
+
+### 1. Company registers (no login) — creates the CEO account
+POST {{api}}/api/companies/register
+Content-Type: application/json
+
+{
+  "companyName": "Binaan Hijau Sdn Bhd",
+  "ssmNo": "202301012345",
+  "cidbGrade": "G5",
+  "address": "Jalan Ampang, Kuala Lumpur",
+  "phone": "03-1234 5678",
+  "ceoName": "Aminah Rahman",
+  "ceoEmail": "{{ceoEmail}}",
+  "password": "{{pwd}}"
+}
+
+### 2a. Platform admin logs in
+# @name admin
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "{{adminEmail}}", "password": "{{adminPassword}}" }
+
+### 2b. Admin lists pending companies
+GET {{api}}/api/admin/companies?status=Pending
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+
+### 2c. Admin verifies company 1
+POST {{api}}/api/admin/companies/1/verify
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+
+### 3a. CEO logs in
+# @name ceo
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "{{ceoEmail}}", "password": "{{pwd}}" }
+
+### 3b. CEO: who am I
+GET {{api}}/api/auth/me
+Authorization: Bearer {{ceo.response.body.$.accessToken}}
+
+### 3c. CEO invites the Project Manager (temporary password)
+POST {{api}}/api/company/users
+Authorization: Bearer {{ceo.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "fullName": "Hafiz Ismail", "email": "{{pmEmail}}", "role": "ProjectManager", "temporaryPassword": "Temp2026Pass" }
+
+### 3d. CEO invites the Superior
+POST {{api}}/api/company/users
+Authorization: Bearer {{ceo.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "fullName": "Lim Wei Ming", "email": "{{supEmail}}", "role": "Superior", "temporaryPassword": "Temp2026Pass" }
+
+### 4a. PM logs in with the temporary password
+# @name pmTemp
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "{{pmEmail}}", "password": "Temp2026Pass" }
+
+### 4b. PM must change password first (anything else returns 403 until then)
+POST {{api}}/api/auth/change-password
+Authorization: Bearer {{pmTemp.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "currentPassword": "Temp2026Pass", "newPassword": "{{pwd}}" }
+
+### 4c. PM logs in again
+# @name pm
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "{{pmEmail}}", "password": "{{pwd}}" }
+
+### 5a. Superior: temporary login, change password, log in again
+# @name supTemp
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "{{supEmail}}", "password": "Temp2026Pass" }
+
+###
+POST {{api}}/api/auth/change-password
+Authorization: Bearer {{supTemp.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "currentPassword": "Temp2026Pass", "newPassword": "{{pwd}}" }
+
+###
+# @name sup
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "{{supEmail}}", "password": "{{pwd}}" }
+
+### 6a. PM: GBI tools
+GET {{api}}/api/tools
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+
+### 6b. PM creates project on NREB (tool 1)
+POST {{api}}/api/projects
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "code": "KLT", "name": "Kelulut HQ", "toolId": 1, "location": "Kuala Lumpur", "buildingType": "Office", "gfaM2": 1200, "targetRating": "Certified" }
+
+### 6c. PM submits the baseline (47 of 55 targeted points; WE1 not yet done)
+POST {{api}}/api/projects/1/baseline
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "stage": "SelfCheck",
+  "scores": [
+    { "criterionId": 1,  "status": "Achieved",   "pointsTargeted": 2,  "pointsAwarded": 2 },
+    { "criterionId": 2,  "status": "Achieved",   "pointsTargeted": 3,  "pointsAwarded": 3 },
+    { "criterionId": 3,  "status": "Achieved",   "pointsTargeted": 2,  "pointsAwarded": 2 },
+    { "criterionId": 4,  "status": "Achieved",   "pointsTargeted": 5,  "pointsAwarded": 5 },
+    { "criterionId": 5,  "status": "InProgress", "pointsTargeted": 15, "pointsAwarded": 10 },
+    { "criterionId": 6,  "status": "Achieved",   "pointsTargeted": 4,  "pointsAwarded": 4 },
+    { "criterionId": 9,  "status": "Achieved",   "pointsTargeted": 3,  "pointsAwarded": 3 },
+    { "criterionId": 10, "status": "Achieved",   "pointsTargeted": 1,  "pointsAwarded": 1 },
+    { "criterionId": 13, "status": "Achieved",   "pointsTargeted": 2,  "pointsAwarded": 2 },
+    { "criterionId": 17, "status": "Achieved",   "pointsTargeted": 2,  "pointsAwarded": 2 },
+    { "criterionId": 21, "status": "Achieved",   "pointsTargeted": 2,  "pointsAwarded": 2 },
+    { "criterionId": 30, "status": "Achieved",   "pointsTargeted": 4,  "pointsAwarded": 4 },
+    { "criterionId": 36, "status": "Achieved",   "pointsTargeted": 3,  "pointsAwarded": 3 },
+    { "criterionId": 38, "status": "NotStarted", "pointsTargeted": 3,  "pointsAwarded": 0 },
+    { "criterionId": 41, "status": "Achieved",   "pointsTargeted": 3,  "pointsAwarded": 3 },
+    { "criterionId": 44, "status": "Achieved",   "pointsTargeted": 1,  "pointsAwarded": 1 }
+  ]
+}
+
+### 7a. PM creates CO-ticket for WE1 Rainwater Harvesting (3 points)
+POST {{api}}/api/projects/1/tickets
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "criterionId": 38, "title": "Install rainwater harvesting tank", "description": "5 m³ tank for landscape irrigation", "pointsAtStake": 3, "priority": "High" }
+
+### 7b. PM starts work
+POST {{api}}/api/tickets/1/move
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "to": "InProgress" }
+
+### 7c. PM uploads evidence (put any PDF next to this file as evidence.pdf)
+POST {{api}}/api/tickets/1/evidence?stage=CompletionVerification
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+Content-Type: multipart/form-data; boundary=SMBOUNDARY
+
+--SMBOUNDARY
+Content-Disposition: form-data; name="file"; filename="evidence.pdf"
+Content-Type: application/pdf
+
+< ./evidence.pdf
+--SMBOUNDARY--
+
+### 7d. PM sends for review
+POST {{api}}/api/tickets/1/move
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "to": "InReview" }
+
+### 8a. Superior sees the board (only Approve/Reject buttons for In review)
+GET {{api}}/api/projects/1/tickets
+Authorization: Bearer {{sup.response.body.$.accessToken}}
+
+### 8b. Superior approves with 3 points → re-score 47 → 50 (Certified)
+POST {{api}}/api/tickets/1/move
+Authorization: Bearer {{sup.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "to": "Done", "pointsGained": 3 }
+
+### 9. Project: confirmed vs projected score, progress
+GET {{api}}/api/projects/1
+Authorization: Bearer {{pm.response.body.$.accessToken}}
+
+### 10. CEO runs the GBI analysis (progress 50/55 = 91% ≥ 80%) → e-cert requested
+POST {{api}}/api/projects/1/analysis
+Authorization: Bearer {{ceo.response.body.$.accessToken}}
+
+### 11a. Admin: e-cert requests
+GET {{api}}/api/admin/ecerts?status=Requested
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+
+### 11b. Admin approves e-cert 1
+# @name issued
+POST {{api}}/api/admin/ecerts/1/approve
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+
+### 12. Public verification (what the QR code opens) — no login
+GET {{api}}{{issued.response.body.$.verifyUrl}}
+
+### Notifications for the CEO
+GET {{api}}/api/notifications?unreadOnly=true
+Authorization: Bearer {{ceo.response.body.$.accessToken}}
+
+### Score history
+GET {{api}}/api/projects/1/history
+Authorization: Bearer {{ceo.response.body.$.accessToken}}
+
+### Forgot password (code is emailed, or logged when SMTP is not set)
+POST {{api}}/api/auth/forgotPassword
+Content-Type: application/json
+
+{ "email": "{{pmEmail}}" }

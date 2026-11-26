@@ -1,0 +1,141 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthSession Session
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+@if (!Session.Loaded || !Session.IsAuthenticated)
+{
+    <div class="boot"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="shell">
+        <aside class="sidebar">
+            <a class="brand" href="/">
+                <BrandMark />
+                <span>Sustain Monitor</span>
+            </a>
+
+            <nav class="nav">
+                <NavLink class="nav-item" href="/" Match="NavLinkMatch.All"><Icon Name="home" /> Dashboard</NavLink>
+
+                @if (Session.IsPlatformAdmin)
+                {
+                    <div class="nav-section">Platform admin</div>
+                    <NavLink class="nav-item" href="/admin/companies"><Icon Name="building" /> Companies</NavLink>
+                    <NavLink class="nav-item" href="/admin/ecerts"><Icon Name="award" /> E-cert requests</NavLink>
+                    <NavLink class="nav-item" href="/admin/users"><Icon Name="users" /> Users</NavLink>
+                }
+                else if (Session.Role is not null)
+                {
+                    <div class="nav-section">@Session.Me!.Membership!.Company</div>
+                    <NavLink class="nav-item" href="/projects"><Icon Name="folder" /> Projects</NavLink>
+                    @if (Session.IsPm)
+                    {
+                        <NavLink class="nav-item" href="/projects/new"><Icon Name="plus" /> New project</NavLink>
+                    }
+                    <NavLink class="nav-item" href="/company"><Icon Name="users" /> Company & team</NavLink>
+                }
+                <NavLink class="nav-item" href="/notifications">
+                    <Icon Name="bell" /> Notifications
+                    @if (_unread > 0)
+                    {
+                        <span class="count">@_unread</span>
+                    }
+                </NavLink>
+            </nav>
+
+            <div class="sidebar-foot">
+                <div class="me">
+                    <div class="avatar">@Initials</div>
+                    <div>
+                        <div class="me-name">@Session.DisplayName</div>
+                        <div class="me-role">@Session.RoleLabel</div>
+                    </div>
+                </div>
+                <button class="btn btn-ghost btn-sm w-100" @onclick="LogoutAsync"><Icon Name="logout" /> Sign out</button>
+            </div>
+        </aside>
+
+        <main class="content">
+            @if (CompanyBanner is { } banner)
+            {
+                <div class="banner @banner.Css">@banner.Text</div>
+            }
+            @Body
+        </main>
+    </div>
+}
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong. <a href="." class="reload">Reload</a>
+    <span class="dismiss">×</span>
+</div>
+
+@code {
+    private int _unread;
+
+    private string Initials => string.Concat(Session.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    private (string Text, string Css)? CompanyBanner => Session.Me?.Membership?.CompanyStatus switch
+    {
+        CompanyStatus.Pending => ("Your company is waiting for verification by the platform admin. You can look around; adding your team and projects unlocks once verified.", "banner-warn"),
+        CompanyStatus.Suspended => ("Your company is suspended. Contact the platform admin.", "banner-danger"),
+        CompanyStatus.Rejected => ("Your company registration was not approved. Contact the platform admin.", "banner-danger"),
+        _ => null,
+    };
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await Session.LoadAsync();
+        if (!Session.IsAuthenticated)
+        {
+            var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
+            Nav.NavigateTo($"/login?returnUrl={returnUrl}");
+            return;
+        }
+        await Api.RefreshMeAsync();
+        EnforcePasswordChange();
+        await LoadUnreadAsync();
+        StateHasChanged();
+    }
+
+    private void EnforcePasswordChange()
+    {
+        if (Session.Me?.MustChangePassword == true && !Nav.Uri.Contains("/account/password", StringComparison.OrdinalIgnoreCase))
+            Nav.NavigateTo("/account/password?first=1");
+    }
+
+    private async Task LoadUnreadAsync()
+    {
+        if (!Session.IsAuthenticated || Session.Me?.MustChangePassword == true) return;
+        var r = await Api.GetAsync<List<NotificationDto>>("api/notifications?unreadOnly=true");
+        _unread = r.Ok ? r.Value?.Count ?? 0 : 0;
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        EnforcePasswordChange();
+        await LoadUnreadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
+    private Task LogoutAsync() => Api.LogoutAsync();
+
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

@@ -1,0 +1,110 @@
+@page "/register"
+@layout PublicLayout
+@inject ApiClient Api
+
+<PageTitle>Register company · Sustain Monitor</PageTitle>
+
+@if (_done is not null)
+{
+    <h1>Registration received</h1>
+    <Alert Kind="success" Text="@_done.Message" />
+    <p>We'll email the CEO once <b>@_done.Name</b> is verified. You can sign in now to look around.</p>
+    <a class="btn mt-1" href="/login">Go to sign in</a>
+}
+else
+{
+    <h1>Register your company</h1>
+    <p class="lead">For construction companies. The person registering becomes the company's CEO account.</p>
+    <Alert Text="@_error" />
+
+    <form class="form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+        <h3 class="mt-1">Company</h3>
+        <div class="form-grid">
+            <div class="field span-2">
+                <label for="cname">Company name</label>
+                <input id="cname" @bind="_m.CompanyName" placeholder="Binaan Hijau Sdn Bhd" required />
+            </div>
+            <div class="field">
+                <label for="ssm">SSM registration no.</label>
+                <input id="ssm" @bind="_m.SsmNo" placeholder="202301012345" required />
+                <span class="hint">12 digits, or old format like 123456-A</span>
+            </div>
+            <div class="field">
+                <label for="cidb">CIDB grade</label>
+                <select id="cidb" @bind="_m.CidbGrade">
+                    @foreach (var g in new[] { "G1", "G2", "G3", "G4", "G5", "G6", "G7" })
+                    {
+                        <option value="@g">@g</option>
+                    }
+                </select>
+            </div>
+            <div class="field span-2">
+                <label for="addr">Address</label>
+                <input id="addr" @bind="_m.Address" />
+            </div>
+            <div class="field">
+                <label for="phone">Phone</label>
+                <input id="phone" @bind="_m.Phone" />
+            </div>
+        </div>
+
+        <h3 class="mt-1">CEO account</h3>
+        <div class="form-grid">
+            <div class="field">
+                <label for="ceoName">Full name</label>
+                <input id="ceoName" @bind="_m.CeoName" required />
+            </div>
+            <div class="field">
+                <label for="ceoEmail">Email</label>
+                <input id="ceoEmail" type="email" @bind="_m.CeoEmail" required />
+            </div>
+            <div class="field">
+                <label for="pw">Password</label>
+                <input id="pw" type="password" autocomplete="new-password" @bind="_m.Password" required />
+                <span class="hint">10+ characters with upper case, lower case and a number</span>
+            </div>
+            <div class="field">
+                <label for="pw2">Confirm password</label>
+                <input id="pw2" type="password" autocomplete="new-password" @bind="_confirm" required />
+            </div>
+        </div>
+
+        <div class="row-between mt-1">
+            <a href="/login">Already registered? Sign in</a>
+            <button class="btn" type="submit" disabled="@_busy">@(_busy ? "Registering…" : "Register company")</button>
+        </div>
+    </form>
+}
+
+@code {
+    private sealed class Model
+    {
+        public string CompanyName { get; set; } = "";
+        public string SsmNo { get; set; } = "";
+        public string CidbGrade { get; set; } = "G5";
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string CeoName { get; set; } = "";
+        public string CeoEmail { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    private readonly Model _m = new();
+    private string _confirm = "";
+    private string? _error;
+    private bool _busy;
+    private RegisterCompanyResult? _done;
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        if (_m.Password != _confirm) { _error = "Passwords do not match."; return; }
+        _busy = true;
+        try
+        {
+            var r = await Api.AnonymousPostAsync<RegisterCompanyResult>("api/companies/register", _m);
+            if (r.Ok) _done = r.Value; else _error = r.Error;
+        }
+        finally { _busy = false; }
+    }
+}

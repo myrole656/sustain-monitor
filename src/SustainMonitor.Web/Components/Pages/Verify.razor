@@ -1,0 +1,55 @@
+@page "/verify/{Token}"
+@layout PublicLayout
+@inject ApiClient Api
+
+<PageTitle>Verify e-certificate · Sustain Monitor</PageTitle>
+
+<div class="verify-card">
+    <div class="cert-kicker">E-certificate verification</div>
+    @if (_loading)
+    {
+        <Loading Text="Checking certificate…" />
+    }
+    else if (_result is null)
+    {
+        <div class="verify-status verify-Not">Not found</div>
+        <p class="muted">No Sustain Monitor e-certificate matches this link. Ask the company for its certificate number.</p>
+    }
+    else
+    {
+        <div class="verify-status verify-@(_result.Status.Split(' ')[0])">
+            @if (_result.Status == "Valid") { <Icon Name="shield" Size="28" /> }
+            @_result.Status
+        </div>
+        <p class="muted">Certificate @_result.CertNo</p>
+    }
+</div>
+
+@if (_result is not null)
+{
+    <div class="card mt-2">
+        <table class="table">
+            <tr><th>Company</th><td>@_result.Company <small>(SSM @_result.SsmNo)</small></td></tr>
+            <tr><th>Project</th><td>@_result.Project</td></tr>
+            <tr><th>Assessed with</th><td>@_result.Tool</td></tr>
+            <tr><th>Score</th><td><b>@_result.Points</b> / 100 &nbsp; <RatingBadge Rating="@_result.Rating" /></td></tr>
+            <tr><th>Issued</th><td>@Labels.Date(_result.IssuedAt)</td></tr>
+            <tr><th>Valid until</th><td>@Labels.Date(_result.ExpiresAt)</td></tr>
+        </table>
+    </div>
+    <p class="muted mt-2" style="font-size:.82rem">@_result.Disclaimer</p>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+    private VerifyResult? _result;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        var r = await Api.AnonymousGetAsync<VerifyResult>($"api/verify/{Uri.EscapeDataString(Token)}");
+        _result = r.Ok ? r.Value : null;
+        _loading = false;
+    }
+}
