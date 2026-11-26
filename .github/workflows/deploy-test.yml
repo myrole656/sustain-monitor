@@ -1,0 +1,38 @@
+﻿name: Test deployment
+
+# Builds the Docker images, starts the full system on the GitHub runner,
+# runs the smoke test against it, then tears it down. No server needed.
+on:
+  push:
+    branches: [main, dotnet-rebuild]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deploy-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOMAIN: localhost
+      ADMIN_EMAIL: admin@ci.local
+      ADMIN_PASSWORD: Ci2026AdminPass
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images and start API + website
+        working-directory: deploy
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build api web
+
+      - name: Smoke test the running system
+        run: bash scripts/smoke-test.sh
+
+      - name: Show container logs
+        if: always()
+        working-directory: deploy
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs --no-color api web
+
+      - name: Tear down
+        if: always()
+        working-directory: deploy
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v
+

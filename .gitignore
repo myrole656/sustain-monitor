@@ -491,3 +491,6 @@ deploy/.env
 deploy/backups/
 publish/
 **/App_Data/
+
+# Local test data
+.data/

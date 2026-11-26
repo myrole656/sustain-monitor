@@ -31,6 +31,22 @@ GBI-aligned sustainability tracking for construction companies. A Project Manage
 | Approve / decline / revoke e-cert | | | | Yes |
 | View e-certs | Yes | Yes | | |
 
+## Try it on GitHub (no server needed)
+
+**Automatic test deployment.** Every push runs two GitHub Actions:
+- **CI** — builds everything and runs all unit and integration tests.
+- **Test deployment** — builds the Docker images, starts the API and website on GitHub's machine, runs `scripts/smoke-test.sh` against them (health, admin sign-in, GBI tools, company registration and verification, website pages), then shuts down.
+
+See the results under the repository's **Actions** tab.
+
+**Click through it in GitHub Codespaces.** On the repository page: **Code → Codespaces → Create codespace on main**. When it opens, run:
+
+```bash
+bash scripts/dev-run.sh
+```
+
+Open the **Ports** tab → port **5181** (Website). Sign in as `admin@sustainmonitor.local` / `Admin2026Pass`, then use *Register your company* on the sign-in page to try the CEO, Project Manager and Superior flow. Stop with Ctrl+C. Data is kept inside the codespace only.
+
 ## First run
 
 Requires the .NET 10 SDK (`dotnet --version` → 10.x; Visual Studio 2026 includes it).
