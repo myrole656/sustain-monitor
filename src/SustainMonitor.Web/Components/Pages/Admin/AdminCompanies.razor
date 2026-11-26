@@ -1,0 +1,149 @@
+@page "/admin/companies"
+@inject ApiClient Api
+@inject AuthSession Session
+
+<PageTitle>Companies · Admin · Sustain Monitor</PageTitle>
+
+@if (!Session.IsPlatformAdmin)
+{
+    <Alert Kind="warn" Text="Platform admins only." />
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>Companies</h1>
+            <p>Check SSM and CIDB details before verifying. Suspending a company locks all its accounts at once.</p>
+        </div>
+    </div>
+
+    <div class="row mb-2">
+        @foreach (var f in Filters)
+        {
+            <button class="btn btn-sm @(_filter == f ? "" : "btn-ghost")" @onclick="() => SetFilterAsync(f)">@(f?.ToString() ?? "All")</button>
+        }
+    </div>
+
+    <Alert Text="@_error" />
+    <Alert Kind="success" Text="@_ok" />
+
+    @if (_items is null)
+    {
+        <Loading />
+    }
+    else if (_items.Count == 0)
+    {
+        <div class="card empty"><h3>No companies here</h3></div>
+    }
+    else
+    {
+        <div class="card table-wrap">
+            <table class="table">
+                <thead><tr><th>Company</th><th>SSM</th><th>CIDB</th><th>CEO</th><th>Registered</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var c in _items)
+                    {
+                        <tr>
+                            <td><b>@c.Name</b><br /><small>@(c.Address ?? "") @(c.Phone ?? "")</small></td>
+                            <td>@c.SsmNo</td>
+                            <td>@c.CidbGrade</td>
+                            <td>@c.Ceo</td>
+                            <td>@Labels.Date(c.CreatedAt)</td>
+                            <td>
+                                <span class="badge @Css(c.Status)">@c.Status</span>
+                                @if (c.StatusNote is not null) { <br /><small>@c.StatusNote</small> }
+                            </td>
+                            <td class="right nowrap">
+                                @if (c.Status is CompanyStatus.Pending or CompanyStatus.Suspended)
+                                {
+                                    <button class="btn btn-ok btn-sm" @onclick="() => VerifyAsync(c)"><Icon Name="check" /> Verify</button>
+                                }
+                                @if (c.Status == CompanyStatus.Pending)
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick='() => Ask(c, "reject")'>Reject</button>
+                                }
+                                @if (c.Status == CompanyStatus.Verified)
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick='() => Ask(c, "suspend")'>Suspend</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (_target is not null)
+    {
+        <div class="overlay" @onclick="() => _target = null">
+            <div class="dialog" @onclick:stopPropagation>
+                <h2>@(_action == "reject" ? "Reject" : "Suspend") @_target.Name</h2>
+                <p class="muted">The CEO is told this reason by email.</p>
+                <textarea @bind="_reason" placeholder="Reason"></textarea>
+                <div class="dialog-actions">
+                    <button class="btn btn-ghost" @onclick="() => _target = null">Cancel</button>
+                    <button class="btn btn-danger" disabled="@string.IsNullOrWhiteSpace(_reason)" @onclick="ConfirmAsync">@(_action == "reject" ? "Reject" : "Suspend")</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private static readonly CompanyStatus?[] Filters = [CompanyStatus.Pending, CompanyStatus.Verified, CompanyStatus.Suspended, CompanyStatus.Rejected, null];
+    private CompanyStatus? _filter = CompanyStatus.Pending;
+    private List<AdminCompany>? _items;
+    private AdminCompany? _target;
+    private string _action = "";
+    private string? _reason, _error, _ok;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var url = _filter is null ? "api/admin/companies" : $"api/admin/companies?status={_filter}";
+        var r = await Api.GetAsync<List<AdminCompany>>(url);
+        _items = r.Value ?? [];
+        _error = r.Error;
+    }
+
+    private async Task SetFilterAsync(CompanyStatus? f)
+    {
+        _filter = f;
+        _items = null;
+        await LoadAsync();
+    }
+
+    private async Task VerifyAsync(AdminCompany c)
+    {
+        _ok = _error = null;
+        var r = await Api.PostAsync($"api/admin/companies/{c.Id}/verify");
+        if (r.Ok) _ok = $"{c.Name} verified. The CEO has been told."; else _error = r.Error;
+        await LoadAsync();
+    }
+
+    private void Ask(AdminCompany c, string action)
+    {
+        _target = c;
+        _action = action;
+        _reason = null;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_target is null) return;
+        _ok = _error = null;
+        var r = await Api.PostAsync($"api/admin/companies/{_target.Id}/{_action}", new { reason = _reason });
+        if (r.Ok) _ok = $"{_target.Name}: {(_action == "reject" ? "rejected" : "suspended")}."; else _error = r.Error;
+        _target = null;
+        await LoadAsync();
+    }
+
+    private static string Css(CompanyStatus s) => s switch
+    {
+        CompanyStatus.Verified => "badge-ok",
+        CompanyStatus.Pending => "badge-warn",
+        _ => "badge-danger",
+    };
+}

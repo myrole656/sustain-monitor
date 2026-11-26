@@ -1,0 +1,262 @@
+@page "/projects/{Id:int}"
+@inject ApiClient Api
+@inject AuthSession Session
+
+<PageTitle>@(_p?.Name ?? "Project") · Sustain Monitor</PageTitle>
+
+@if (_p is null)
+{
+    <Alert Text="@_error" />
+    @if (_error is null) { <Loading /> }
+}
+else
+{
+    <ProjectHeader Project="_p" Active="overview">
+        @if (_p.MyRole == CompanyRole.ProjectManager && _p.Current is not null)
+        {
+            <a class="btn" href="/projects/@_p.Id/tickets/new"><Icon Name="plus" /> New CO-ticket</a>
+        }
+    </ProjectHeader>
+
+    @if (_p.Current is null || _p.Progress is null)
+    {
+        <div class="card empty">
+            <Icon Name="check" Size="34" />
+            <h3 class="mt-1">Baseline not submitted</h3>
+            @if (_p.MyRole == CompanyRole.ProjectManager)
+            {
+                <p>Score where the project stands today on each GBI criterion. After that, points only change through approved CO-tickets.</p>
+                <a class="btn" href="/projects/@_p.Id/baseline">Score the baseline</a>
+            }
+            else
+            {
+                <p>The Project Manager scores the baseline first.</p>
+            }
+        </div>
+    }
+    else
+    {
+        var pr = _p.Progress;
+        <div class="grid grid-main">
+            <div>
+                <div class="card">
+                    <div class="card-title">
+                        <h2>GBI score</h2>
+                        <small>Snapshot v@(_p.Current.VersionNo) · @Labels.Of(_p.Current.Trigger) · @Labels.Date(_p.Current.CreatedAt)</small>
+                    </div>
+                    <div class="grid grid-2 mb-1">
+                        <div class="stat">
+                            <span class="stat-label">Confirmed</span>
+                            <span class="stat-value">@pr.ConfirmedPoints <small style="font-size:1rem">/ 100</small></span>
+                            <span><RatingBadge Rating="@pr.ConfirmedRating" /> <small>baseline + approved tickets</small></span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Projected</span>
+                            <span class="stat-value">@pr.ProjectedPoints <small style="font-size:1rem">/ 100</small></span>
+                            <span><RatingBadge Rating="@pr.ProjectedRating" /> <small>if all @pr.OpenTickets open tickets pass</small></span>
+                        </div>
+                    </div>
+                    <ScoreBar Confirmed="pr.ConfirmedPoints" Projected="pr.ProjectedPoints" />
+                    <div class="legend"><span><i class="l-confirmed"></i>Confirmed</span><span><i class="l-projected"></i>Projected from open tickets</span><span>Ticks: GBI rating bands</span></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><h2>By GBI category</h2></div>
+                    <div class="catbars">
+                        @foreach (var c in _p.Current.Categories)
+                        {
+                            <div class="catbar" title="@c.Name">
+                                <span class="catbar-code">@c.Code</span>
+                                <div>
+                                    <div class="row-between" style="font-size:.8rem;color:var(--ink-2);margin-bottom:2px"><span>@c.Name</span></div>
+                                    <div class="catbar-track"><div class="catbar-fill" style="width:@(c.MaxPoints == 0 ? 0 : c.Points * 100 / c.MaxPoints)%"></div></div>
+                                </div>
+                                <span class="catbar-val">@c.Points / @c.MaxPoints</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        <h2>Criteria</h2>
+                        <label class="row" style="font-size:.85rem"><input type="checkbox" style="width:auto" @bind="_onlyGaps" /> Only gaps</label>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead><tr><th>Code</th><th>Criterion</th><th>Status</th><th class="num">Awarded</th><th class="num">Target</th><th class="num">Max</th><th class="num">On tickets</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var group in _p.Current.Criteria.GroupBy(c => c.Category))
+                                {
+                                    var rows = group.Where(c => !_onlyGaps || (c.Status != CriterionStatus.NotApplicable && c.PointsAwarded < c.PointsTargeted)).ToList();
+                                    if (rows.Count == 0) continue;
+                                    <tr class="group"><td colspan="8">@group.Key — @(_p.Current.Categories.FirstOrDefault(x => x.Code == group.Key)?.Name)</td></tr>
+                                    @foreach (var c in rows)
+                                    {
+                                        var room = c.Max - c.PointsAwarded - c.OpenStake;
+                                        <tr>
+                                            <td><b>@c.Code</b></td>
+                                            <td>@c.Name</td>
+                                            <td><span class="badge @CritCss(c.Status)">@Labels.Of(c.Status)</span></td>
+                                            <td class="num"><b>@c.PointsAwarded</b></td>
+                                            <td class="num">@c.PointsTargeted</td>
+                                            <td class="num">@c.Max</td>
+                                            <td class="num">@(c.OpenStake > 0 ? $"+{c.OpenStake}" : "")</td>
+                                            <td class="right">
+                                                @if (_p.MyRole == CompanyRole.ProjectManager && room > 0 && c.Status != CriterionStatus.NotApplicable)
+                                                {
+                                                    <a class="btn btn-ghost btn-sm" href="/projects/@_p.Id/tickets/new?criterionId=@c.CriterionId">Raise ticket</a>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="card">
+                    <div class="card-title"><h2>GBI analysis</h2></div>
+                    <div class="gate">
+                        <div class="row-between"><span>Progress to target</span><b>@((int)(pr.Progress * 100))%</b></div>
+                        <div class="gate-track mt-1">
+                            <div class="gate-fill" style="width:@((int)(pr.Progress * 100))%"></div>
+                            <div class="gate-mark" style="left:@((int)(pr.Threshold * 100))%"><span>@((int)(pr.Threshold * 100))%</span></div>
+                        </div>
+                        <small>@pr.ConfirmedPoints of @pr.TargetedPoints targeted points confirmed. The analysis unlocks at @((int)(pr.Threshold * 100))%.</small>
+                    </div>
+                    <div class="mt-2">
+                        @if (_p.MyRole is CompanyRole.CEO or CompanyRole.ProjectManager)
+                        {
+                            <button class="btn w-100" disabled="@(!pr.CanRunAnalysis || _running)" @onclick="RunAnalysisAsync">
+                                <Icon Name="play" /> @(_running ? "Running…" : "Run GBI analysis")
+                            </button>
+                            @if (!pr.CanRunAnalysis)
+                            {
+                                <small class="mt-1" style="display:block">Close more CO-tickets to reach @((int)(pr.Threshold * 100))%.</small>
+                            }
+                        }
+                        else
+                        {
+                            <small>The CEO or Project Manager runs the analysis.</small>
+                        }
+                    </div>
+                    <Alert Text="@_analysisError" />
+                    @if (_analysis is not null)
+                    {
+                        <div class="mt-2">
+                            <Alert Kind="@(_analysis.Certificate.Status == "Requested" ? "success" : "info")" Text="@_analysis.Certificate.Message" />
+                            <div class="row-between"><span>Result</span><span><b>@_analysis.TotalPoints</b> / @_analysis.MaxPoints <RatingBadge Rating="@_analysis.Rating" /></span></div>
+                        </div>
+                    }
+                </div>
+
+                @if (_p.MyRole is CompanyRole.CEO or CompanyRole.ProjectManager)
+                {
+                    <div class="card">
+                        <div class="card-title"><h2>E-certificates</h2></div>
+                        @if (_certs.Count == 0)
+                        {
+                            <small>None yet. Run the analysis at 50+ points to request one.</small>
+                        }
+                        else
+                        {
+                            <table class="table">
+                                @foreach (var c in _certs)
+                                {
+                                    <tr>
+                                        <td>
+                                            <b>@(c.CertNo ?? "Request")</b><br />
+                                            <small>@c.Points pts · @c.Rating · @Labels.Date(c.IssuedAt ?? c.RequestedAt)</small>
+                                            @if (c.DecisionNote is not null)
+                                            {
+                                                <br /><small>@c.DecisionNote</small>
+                                            }
+                                        </td>
+                                        <td class="right">
+                                            <span class="badge @CertCss(c.Status)">@c.Status</span>
+                                            @if (c.Status == ECertStatus.Issued)
+                                            {
+                                                <br /><a class="btn btn-ghost btn-sm mt-1" href="/ecerts/@c.Id"><Icon Name="award" /> View</a>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </table>
+                        }
+                    </div>
+                }
+
+                <div class="card">
+                    <div class="card-title"><h2>Score history</h2></div>
+                    <ul class="timeline">
+                        @foreach (var h in _history.OrderByDescending(h => h.VersionNo))
+                        {
+                            <li>
+                                <span class="dot"></span>
+                                <div>
+                                    <b>@h.TotalPoints pts</b> <RatingBadge Rating="@h.Rating" />
+                                    <br /><small>v@(h.VersionNo) · @Labels.Of(h.Trigger)@(h.TriggerTicketId is { } t ? $" (ticket #{t})" : "") · @Labels.When(h.CreatedAt)</small>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private ProjectDetail? _p;
+    private List<HistoryItem> _history = [];
+    private List<ECertListItem> _certs = [];
+    private AnalysisResult? _analysis;
+    private string? _error, _analysisError;
+    private bool _running, _onlyGaps;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var r = await Api.GetAsync<ProjectDetail>($"api/projects/{Id}");
+        _p = r.Value;
+        _error = r.Error;
+        if (_p is null) return;
+        _history = (await Api.GetAsync<List<HistoryItem>>($"api/projects/{Id}/history")).Value ?? [];
+        if (_p.MyRole is CompanyRole.CEO or CompanyRole.ProjectManager)
+            _certs = (await Api.GetAsync<List<ECertListItem>>($"api/projects/{Id}/ecerts")).Value ?? [];
+    }
+
+    private async Task RunAnalysisAsync()
+    {
+        _analysisError = null;
+        _running = true;
+        try
+        {
+            var r = await Api.PostAsync<AnalysisResult>($"api/projects/{Id}/analysis");
+            if (r.Ok) { _analysis = r.Value; await LoadAsync(); }
+            else _analysisError = r.Error;
+        }
+        finally { _running = false; }
+    }
+
+    private static string CritCss(CriterionStatus s) => s switch
+    {
+        CriterionStatus.Achieved => "badge-ok",
+        CriterionStatus.InProgress => "badge-info",
+        CriterionStatus.NotApplicable => "",
+        _ => "badge-warn",
+    };
+
+    private static string CertCss(ECertStatus s) => s switch
+    {
+        ECertStatus.Issued => "badge-ok",
+        ECertStatus.Requested => "badge-warn",
+        _ => "badge-danger",
+    };
+}

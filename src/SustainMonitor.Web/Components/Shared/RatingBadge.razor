@@ -1,0 +1,13 @@
+<span class="rating rating-@Css">@(string.IsNullOrEmpty(Rating) ? "Not rated" : Rating)</span>
+
+@code {
+    [Parameter] public string? Rating { get; set; }
+    private string Css => (Rating ?? "").ToLowerInvariant() switch
+    {
+        "platinum" => "platinum",
+        "gold" => "gold",
+        "silver" => "silver",
+        "certified" => "certified",
+        _ => "none",
+    };
+}

@@ -1,0 +1,128 @@
+@page "/"
+@inject ApiClient Api
+@inject AuthSession Session
+
+<PageTitle>Dashboard · Sustain Monitor</PageTitle>
+
+@if (Session.IsPlatformAdmin)
+{
+    <div class="page-head">
+        <div>
+            <h1>Platform overview</h1>
+            <p>Companies waiting for verification and e-certs waiting for a decision.</p>
+        </div>
+    </div>
+
+    @if (_admin is null)
+    {
+        <Loading />
+    }
+    else
+    {
+        <div class="grid grid-3">
+            <a class="card stat project-card" href="/admin/companies">
+                <span class="stat-label">Companies to verify</span>
+                <span class="stat-value">@_admin.Value.PendingCompanies</span>
+                <span class="stat-sub">@_admin.Value.VerifiedCompanies verified in total</span>
+            </a>
+            <a class="card stat project-card" href="/admin/ecerts">
+                <span class="stat-label">E-cert requests</span>
+                <span class="stat-value">@_admin.Value.RequestedCerts</span>
+                <span class="stat-sub">@_admin.Value.IssuedCerts issued in total</span>
+            </a>
+            <a class="card stat project-card" href="/admin/users">
+                <span class="stat-label">Users</span>
+                <span class="stat-value">@_admin.Value.Users</span>
+                <span class="stat-sub">@_admin.Value.LockedUsers locked</span>
+            </a>
+        </div>
+    }
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>Welcome, @FirstName</h1>
+            <p>@Session.Me?.Membership?.Company · @Session.RoleLabel</p>
+        </div>
+        @if (Session.IsPm)
+        {
+            <a class="btn" href="/projects/new"><Icon Name="plus" /> New project</a>
+        }
+    </div>
+
+    <Alert Text="@_error" />
+
+    @if (_projects is null)
+    {
+        <Loading />
+    }
+    else
+    {
+        @if (_projects.Count > 0)
+        {
+            <div class="grid grid-4 mb-2">
+                <div class="card stat">
+                    <span class="stat-label">Projects</span>
+                    <span class="stat-value">@_projects.Count</span>
+                </div>
+                <div class="card stat">
+                    <span class="stat-label">Open CO-tickets</span>
+                    <span class="stat-value">@_projects.Sum(p => p.OpenTickets)</span>
+                </div>
+                <div class="card stat">
+                    <span class="stat-label">Best score</span>
+                    <span class="stat-value">@(_projects.Max(p => p.Current?.TotalPoints) ?? 0)</span>
+                    <span class="stat-sub">of 100 GBI points</span>
+                </div>
+                <div class="card stat">
+                    <span class="stat-label">Rated projects</span>
+                    <span class="stat-value">@_projects.Count(p => p.Current is not null && p.Current.TotalPoints >= 50)</span>
+                    <span class="stat-sub">Certified or better</span>
+                </div>
+            </div>
+        }
+        <h2 class="mb-1">Projects</h2>
+        <ProjectGrid Projects="_projects" CanCreate="Session.IsPm" />
+
+        @if (Session.IsCeo && Session.Me?.Membership?.CompanyStatus == CompanyStatus.Verified)
+        {
+            <div class="card mt-2 row-between">
+                <div>
+                    <h3>Your team</h3>
+                    <small>Add Project Managers to create projects and tickets, and Superiors to approve them.</small>
+                </div>
+                <a class="btn btn-ghost" href="/company"><Icon Name="users" /> Manage team</a>
+            </div>
+        }
+    }
+}
+
+@code {
+    private List<ProjectListItem>? _projects;
+    private (int PendingCompanies, int VerifiedCompanies, int RequestedCerts, int IssuedCerts, int Users, int LockedUsers)? _admin;
+    private string? _error;
+
+    private string FirstName => Session.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsPlatformAdmin)
+        {
+            var companies = await Api.GetAsync<List<AdminCompany>>("api/admin/companies");
+            var certs = await Api.GetAsync<List<AdminECert>>("api/admin/ecerts");
+            var users = await Api.GetAsync<List<AdminUser>>("api/admin/users");
+            var c = companies.Value ?? [];
+            var e = certs.Value ?? [];
+            var u = users.Value ?? [];
+            _admin = (c.Count(x => x.Status == CompanyStatus.Pending), c.Count(x => x.Status == CompanyStatus.Verified),
+                      e.Count(x => x.Status == ECertStatus.Requested), e.Count(x => x.Status == ECertStatus.Issued),
+                      u.Count, u.Count(x => x.Locked));
+            return;
+        }
+
+        var r = await Api.GetAsync<List<ProjectListItem>>("api/projects");
+        if (r.Ok) _projects = r.Value ?? [];
+        else { _error = r.Error; _projects = []; }
+    }
+}

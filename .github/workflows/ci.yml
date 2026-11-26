@@ -1,0 +1,54 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore SustainMonitor.slnx
+      - run: dotnet build SustainMonitor.slnx --no-restore -c Release
+      - run: dotnet test SustainMonitor.slnx --no-build -c Release --logger "trx;LogFileName=results.trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: "**/TestResults/*.trx"
+
+  images:
+    # On main: build both Docker images and push them to GitHub Container Registry.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lower-case image prefix
+        run: echo "PREFIX=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/SustainMonitor.Api/Dockerfile
+          push: true
+          tags: ${{ env.PREFIX }}-api:latest,${{ env.PREFIX }}-api:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/SustainMonitor.Web/Dockerfile
+          push: true
+          tags: ${{ env.PREFIX }}-web:latest,${{ env.PREFIX }}-web:${{ github.sha }}
+

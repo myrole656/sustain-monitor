@@ -1,0 +1,70 @@
+@page "/admin/users"
+@inject ApiClient Api
+@inject AuthSession Session
+
+<PageTitle>Users · Admin · Sustain Monitor</PageTitle>
+
+@if (!Session.IsPlatformAdmin)
+{
+    <Alert Kind="warn" Text="Platform admins only." />
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>Users</h1>
+            <p>Everyone with an account. Locked accounts belong to deactivated members or suspended companies.</p>
+        </div>
+        <input placeholder="Search name, email or company" @bind="_search" @bind:event="oninput" style="width:280px" />
+    </div>
+
+    <Alert Text="@_error" />
+    @if (_items is null)
+    {
+        <Loading />
+    }
+    else
+    {
+        <div class="card table-wrap">
+            <table class="table">
+                <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Role</th><th>Created</th><th>Status</th></tr></thead>
+                <tbody>
+                    @foreach (var u in Filtered)
+                    {
+                        <tr>
+                            <td>@(u.FullName ?? "—")</td>
+                            <td>@u.Email</td>
+                            <td>@(u.Membership?.Company ?? "—")</td>
+                            <td>@(u.Membership is null ? "Platform admin" : Labels.Of(u.Membership.Role))</td>
+                            <td>@Labels.Date(u.CreatedAt)</td>
+                            <td>
+                                @if (u.Locked) { <span class="badge badge-danger"><Icon Name="lock" Size="12" /> Locked</span> }
+                                else if (u.MustChangePassword) { <span class="badge badge-warn">Temp password</span> }
+                                else { <span class="badge badge-ok">Active</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private List<AdminUser>? _items;
+    private string _search = "";
+    private string? _error;
+
+    private IEnumerable<AdminUser> Filtered => (_items ?? []).Where(u =>
+        string.IsNullOrWhiteSpace(_search)
+        || (u.FullName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+        || u.Email.Contains(_search, StringComparison.OrdinalIgnoreCase)
+        || (u.Membership?.Company ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var r = await Api.GetAsync<List<AdminUser>>("api/admin/users");
+        _items = r.Value ?? [];
+        _error = r.Error;
+    }
+}

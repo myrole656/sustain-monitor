@@ -1,0 +1,16 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Automatic HTTPS from Let's Encrypt for your domain. Point the domain's DNS A record at this server first.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Blazor Server uses WebSockets; Caddy proxies them automatically.
+	reverse_proxy web:8080
+}

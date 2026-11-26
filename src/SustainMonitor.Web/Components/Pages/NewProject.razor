@@ -1,0 +1,129 @@
+@page "/projects/new"
+@inject ApiClient Api
+@inject AuthSession Session
+@inject NavigationManager Nav
+
+<PageTitle>New project · Sustain Monitor</PageTitle>
+
+<div class="crumbs"><a href="/projects">Projects</a> / New</div>
+<div class="page-head">
+    <div>
+        <h1>New project</h1>
+        <p>Pick the GBI tool that fits the building. Next you'll score the baseline for each GBI criterion.</p>
+    </div>
+</div>
+
+@if (!Session.IsPm)
+{
+    <Alert Kind="warn" Text="Only a Project Manager can create projects." />
+}
+else
+{
+    <div class="card" style="max-width:820px">
+        <Alert Text="@_error" />
+        <form class="form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="code">Project code</label>
+                    <input id="code" @bind="_m.Code" maxlength="10" placeholder="KLT" required />
+                    <span class="hint">2–10 letters or numbers. Used in ticket numbers, e.g. KLT-CO-0001</span>
+                </div>
+                <div class="field">
+                    <label for="name">Project name</label>
+                    <input id="name" @bind="_m.Name" placeholder="Kelulut HQ" required />
+                </div>
+                <div class="field span-2">
+                    <label for="tool">GBI tool</label>
+                    <select id="tool" @bind="_m.ToolId">
+                        @foreach (var t in _tools)
+                        {
+                            <option value="@t.Id">GBI @t.Code — @t.Name (v@t.Version)</option>
+                        }
+                    </select>
+                    <span class="hint">NREB = Non-Residential Existing Building. ID = Interiors (fit-outs).</span>
+                </div>
+                <div class="field">
+                    <label for="loc">Location</label>
+                    <input id="loc" @bind="_m.Location" />
+                </div>
+                <div class="field">
+                    <label for="type">Building type</label>
+                    <input id="type" @bind="_m.BuildingType" placeholder="Office, retail, hospital…" />
+                </div>
+                <div class="field">
+                    <label for="gfa">Gross floor area (m²)</label>
+                    <input id="gfa" type="number" min="0" step="1" @bind="_m.GfaM2" />
+                    <span class="hint">Some criteria depend on it, e.g. Interiors EE2</span>
+                </div>
+                <div class="field">
+                    <label for="target">Target rating</label>
+                    <select id="target" @bind="_m.TargetRating">
+                        <option value="Certified">Certified (50+)</option>
+                        <option value="Silver">Silver (66+)</option>
+                        <option value="Gold">Gold (76+)</option>
+                        <option value="Platinum">Platinum (86+)</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="reg">Registration date</label>
+                    <input id="reg" type="date" @bind="_m.RegDate" />
+                </div>
+                <div></div>
+                <div class="field">
+                    <label for="pic">Person in charge</label>
+                    <input id="pic" @bind="_m.PicName" />
+                </div>
+                <div class="field">
+                    <label for="picc">PIC contact</label>
+                    <input id="picc" @bind="_m.PicContact" />
+                </div>
+            </div>
+            <div class="row-between mt-1">
+                <a href="/projects">Cancel</a>
+                <button class="btn" type="submit" disabled="@_busy">Create and score baseline <Icon Name="arrow-right" /></button>
+            </div>
+        </form>
+    </div>
+}
+
+@code {
+    private sealed class Model
+    {
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public int ToolId { get; set; }
+        public string? Location { get; set; }
+        public string? BuildingType { get; set; }
+        public decimal? GfaM2 { get; set; }
+        public string TargetRating { get; set; } = "Gold";
+        public DateOnly? RegDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public string? PicName { get; set; }
+        public string? PicContact { get; set; }
+    }
+
+    private readonly Model _m = new();
+    private List<ToolSummary> _tools = [];
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var r = await Api.GetAsync<List<ToolSummary>>("api/tools");
+        _tools = r.Value ?? [];
+        _error = r.Error;
+        if (_tools.Count > 0) _m.ToolId = _tools[0].Id;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            var r = await Api.PostAsync<CreatedRef>("api/projects", _m);
+            if (r.Ok && r.Value is not null) Nav.NavigateTo($"/projects/{r.Value.Id}/baseline");
+            else _error = r.Error;
+        }
+        finally { _busy = false; }
+    }
+}

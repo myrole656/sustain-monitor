@@ -1,0 +1,65 @@
+# Sustain Monitor — production stack.
+#   cp .env.example .env   (fill it in)
+#   docker compose up -d --build
+# Only Caddy is exposed (80/443, automatic HTTPS). The API is reachable only by the web app.
+name: sustainmonitor
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: src/SustainMonitor.Api/Dockerfile
+    image: ${IMAGE_PREFIX:-sustainmonitor}-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      Seed__AdminEmail: ${ADMIN_EMAIL}
+      Seed__AdminPassword: ${ADMIN_PASSWORD}
+      Smtp__Host: ${SMTP_HOST:-}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__EnableSsl: ${SMTP_SSL:-true}
+      Smtp__User: ${SMTP_USER:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+      Smtp__From: ${SMTP_FROM:-no-reply@sustainmonitor.local}
+      Analysis__ProgressThreshold: ${PROGRESS_THRESHOLD:-0.8}
+      Auth__AccessTokenMinutes: ${ACCESS_TOKEN_MINUTES:-60}
+    volumes:
+      - api-data:/data
+    expose:
+      - "8080"
+
+  web:
+    build:
+      context: ..
+      dockerfile: src/SustainMonitor.Web/Dockerfile
+    image: ${IMAGE_PREFIX:-sustainmonitor}-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      Api__BaseUrl: http://api:8080/
+    volumes:
+      - web-keys:/keys
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  api-data:     # SQLite database, evidence files, API token keys — back this up
+  web-keys:     # keeps users signed in across restarts
+  caddy-data:   # HTTPS certificates
+  caddy-config:

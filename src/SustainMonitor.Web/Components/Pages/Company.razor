@@ -1,0 +1,178 @@
+@page "/company"
+@inject ApiClient Api
+@inject AuthSession Session
+
+<PageTitle>Company · Sustain Monitor</PageTitle>
+
+@if (_company is null)
+{
+    <Alert Text="@_error" />
+    @if (_error is null) { <Loading /> }
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>@_company.Name</h1>
+            <p>SSM @_company.SsmNo · CIDB @_company.CidbGrade · <span class="badge @StatusCss(_company.Status)">@_company.Status</span></p>
+        </div>
+    </div>
+
+    <div class="grid grid-main">
+        <div class="card">
+            <div class="card-title">
+                <h2>Team</h2>
+                <small>@_company.Team.Count(t => t.IsActive) active</small>
+            </div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Name</th><th>Role</th><th>Joined</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var m in _company.Team)
+                        {
+                            <tr>
+                                <td>@m.FullName</td>
+                                <td>@Labels.Of(m.Role)</td>
+                                <td>@Labels.Date(m.JoinedAt)</td>
+                                <td><span class="badge @(m.IsActive ? "badge-ok" : "badge-danger")">@(m.IsActive ? "Active" : "Deactivated")</span></td>
+                                <td class="right">
+                                    @if (Session.IsCeo && m.Role != CompanyRole.CEO)
+                                    {
+                                        @if (m.IsActive)
+                                        {
+                                            <button class="btn btn-ghost btn-sm" @onclick="() => SetActiveAsync(m, false)">Deactivate</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-ghost btn-sm" @onclick="() => SetActiveAsync(m, true)">Reactivate</button>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <Alert Text="@_teamError" />
+        </div>
+
+        <div>
+            @if (Session.IsCeo)
+            {
+                <div class="card">
+                    <h2>Add team member</h2>
+                    @if (_company.Status != CompanyStatus.Verified)
+                    {
+                        <Alert Kind="warn" Text="You can add team members once the platform admin verifies your company." />
+                    }
+                    else
+                    {
+                        <p class="muted">They get an email with a temporary password and choose their own at first sign-in.</p>
+                        <Alert Text="@_inviteError" />
+                        <Alert Kind="success" Text="@_inviteOk" />
+                        <form class="form" @onsubmit="InviteAsync" @onsubmit:preventDefault>
+                            <div class="field">
+                                <label for="iname">Full name</label>
+                                <input id="iname" @bind="_name" required />
+                            </div>
+                            <div class="field">
+                                <label for="iemail">Email</label>
+                                <input id="iemail" type="email" @bind="_email" required />
+                            </div>
+                            <div class="field">
+                                <label for="irole">Role</label>
+                                <select id="irole" @bind="_role">
+                                    <option value="@CompanyRole.ProjectManager">Project Manager — creates projects, tickets, evidence</option>
+                                    <option value="@CompanyRole.Superior">Superior — approves or rejects tickets</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="itemp">Temporary password</label>
+                                <div class="row">
+                                    <input id="itemp" class="grow" @bind="_temp" required style="width:auto" />
+                                    <button class="btn btn-ghost btn-sm" type="button" @onclick="Generate">Generate</button>
+                                </div>
+                            </div>
+                            <div class="right">
+                                <button class="btn" type="submit" disabled="@_busy"><Icon Name="plus" /> Add member</button>
+                            </div>
+                        </form>
+                    }
+                </div>
+            }
+            <div class="card">
+                <h3>Company details</h3>
+                <table class="table">
+                    <tr><th>Address</th><td>@(_company.Address ?? "—")</td></tr>
+                    <tr><th>Phone</th><td>@(_company.Phone ?? "—")</td></tr>
+                    @if (_company.StatusNote is not null)
+                    {
+                        <tr><th>Admin note</th><td>@_company.StatusNote</td></tr>
+                    }
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private CompanyDto? _company;
+    private string? _error, _teamError, _inviteError, _inviteOk;
+    private string _name = "", _email = "", _temp = "";
+    private CompanyRole _role = CompanyRole.ProjectManager;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Generate();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var r = await Api.GetAsync<CompanyDto>("api/company");
+        _company = r.Value;
+        _error = r.Error;
+    }
+
+    private void Generate()
+    {
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ", lower = "abcdefghijkmnpqrstuvwxyz", digits = "23456789";
+        var all = upper + lower + digits;
+        Func<int, int> rnd = System.Security.Cryptography.RandomNumberGenerator.GetInt32;
+        var chars = new List<char> { upper[rnd(upper.Length)], lower[rnd(lower.Length)], digits[rnd(digits.Length)] };
+        while (chars.Count < 12) chars.Add(all[rnd(all.Length)]);
+        _temp = new string(chars.OrderBy(_ => rnd(1000)).ToArray());
+    }
+
+    private async Task InviteAsync()
+    {
+        _inviteError = _inviteOk = null;
+        _busy = true;
+        try
+        {
+            var r = await Api.PostAsync("api/company/users", new { fullName = _name.Trim(), email = _email.Trim(), role = _role, temporaryPassword = _temp });
+            if (!r.Ok) { _inviteError = r.Error; return; }
+            _inviteOk = $"{_name} added as {Labels.Of(_role)}. An email with the temporary password is on its way.";
+            _name = _email = "";
+            Generate();
+            await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task SetActiveAsync(TeamMemberDto m, bool active)
+    {
+        _teamError = null;
+        var r = await Api.PostAsync($"api/company/users/{m.UserId}/{(active ? "reactivate" : "deactivate")}");
+        if (!r.Ok) _teamError = r.Error;
+        await LoadAsync();
+    }
+
+    private static string StatusCss(CompanyStatus s) => s switch
+    {
+        CompanyStatus.Verified => "badge-ok",
+        CompanyStatus.Pending => "badge-warn",
+        _ => "badge-danger",
+    };
+}

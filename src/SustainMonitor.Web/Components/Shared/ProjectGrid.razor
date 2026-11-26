@@ -1,0 +1,56 @@
+@if (Projects.Count == 0)
+{
+    <div class="card empty">
+        <Icon Name="folder" Size="34" />
+        <h3 class="mt-1">No projects yet</h3>
+        @if (CanCreate)
+        {
+            <p>Create your first project and pick the GBI tool it will be assessed with.</p>
+            <a class="btn" href="/projects/new"><Icon Name="plus" /> New project</a>
+        }
+        else
+        {
+            <p>Your Project Manager creates projects. They will appear here.</p>
+        }
+    </div>
+}
+else
+{
+    <div class="grid grid-3">
+        @foreach (var p in Projects)
+        {
+            <a class="card project-card" href="/projects/@p.Id">
+                <div class="row-between">
+                    <span class="project-code">@p.Code</span>
+                    <RatingBadge Rating="@p.Current?.Rating" />
+                </div>
+                <div>
+                    <h3>@p.Name</h3>
+                    <small>GBI @p.Tool · @(p.Location ?? "—")</small>
+                </div>
+                <div class="row-between">
+                    <div class="project-score">
+                        @if (p.Current is null)
+                        {
+                            <span class="muted">Baseline not submitted</span>
+                        }
+                        else
+                        {
+                            <b>@p.Current.TotalPoints</b><span class="muted">/ 100 points</span>
+                        }
+                    </div>
+                    <span class="badge @(p.OpenTickets > 0 ? "badge-info" : "")">@p.OpenTickets open ticket@(p.OpenTickets == 1 ? "" : "s")</span>
+                </div>
+                @if (p.TargetRating is not null)
+                {
+                    <small>Target: @p.TargetRating</small>
+                }
+            </a>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<ProjectListItem> Projects { get; set; } = [];
+    [Parameter] public bool CanCreate { get; set; }
+}

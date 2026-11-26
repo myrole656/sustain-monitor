@@ -1,0 +1,183 @@
+@page "/projects/{Id:int}/tickets/new"
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>New CO-ticket · Sustain Monitor</PageTitle>
+
+@if (_p is null)
+{
+    <Alert Text="@_error" />
+    @if (_error is null) { <Loading /> }
+}
+else
+{
+    <ProjectHeader Project="_p" Active="board" />
+
+    @if (_p.MyRole != CompanyRole.ProjectManager)
+    {
+        <Alert Kind="warn" Text="Only a Project Manager can raise CO-tickets." />
+    }
+    else if (_p.Current is null)
+    {
+        <Alert Kind="warn" Text="Submit the baseline before raising tickets." />
+    }
+    else
+    {
+        <div class="grid grid-main">
+            <div class="card">
+                <h2>New CO-ticket</h2>
+                <p class="muted">One ticket = one piece of work that earns points on one GBI criterion.</p>
+                <Alert Text="@_error" />
+                <Alert Kind="info" Text="@_info" />
+                <form class="form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+                    <div class="field">
+                        <label for="crit">GBI criterion</label>
+                        <select id="crit" @bind="CriterionId">
+                            <option value="0">Choose a criterion…</option>
+                            @foreach (var g in Claimable.GroupBy(c => c.Category))
+                            {
+                                <optgroup label="@g.Key">
+                                    @foreach (var c in g)
+                                    {
+                                        <option value="@c.CriterionId">@c.Code @c.Name — up to @Room(c) pts</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="title">Title</label>
+                        <input id="title" @bind="_title" placeholder="Install rainwater harvesting tank" required />
+                    </div>
+                    <div class="field">
+                        <label for="desc">What will be done</label>
+                        <textarea id="desc" @bind="_description" placeholder="Scope, location, documents you will upload as evidence"></textarea>
+                    </div>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="pts">Points at stake</label>
+                            <input id="pts" type="number" min="1" max="@(Selected is null ? 1 : Room(Selected))" @bind="_points" />
+                            @if (Selected is not null)
+                            {
+                                <span class="hint">1 to @Room(Selected) for @Selected.Code</span>
+                            }
+                        </div>
+                        <div class="field">
+                            <label for="prio">Priority</label>
+                            <select id="prio" @bind="_priority">
+                                @foreach (var p in Enum.GetValues<TicketPriority>())
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="type">Type</label>
+                            <select id="type" @bind="_type">
+                                @foreach (var t in Enum.GetValues<TicketType>())
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="due">Due date</label>
+                            <input id="due" type="date" @bind="_due" />
+                        </div>
+                    </div>
+                    <div class="row-between mt-1">
+                        <a href="/projects/@Id/board">Cancel</a>
+                        <button class="btn" type="submit" disabled="@_busy"><Icon Name="plus" /> Create ticket</button>
+                    </div>
+                </form>
+            </div>
+            <div>
+                @if (Selected is not null)
+                {
+                    <div class="card">
+                        <h3>@Selected.Code @Selected.Name</h3>
+                        <table class="table">
+                            <tr><th>Max</th><td class="num">@Selected.Max</td></tr>
+                            <tr><th>Awarded now</th><td class="num">@Selected.PointsAwarded</td></tr>
+                            <tr><th>On open tickets</th><td class="num">@Selected.OpenStake</td></tr>
+                            <tr><th>Can still claim</th><td class="num"><b>@Room(Selected)</b></td></tr>
+                        </table>
+                        <small>Projected score with this ticket: <b>@((_p.Progress?.ProjectedPoints ?? 0) + Math.Min(_points, Room(Selected)))</b> / 100</small>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [SupplyParameterFromQuery(Name = "criterionId")] public int? PreselectCriterionId { get; set; }
+
+    private ProjectDetail? _p;
+    private int _criterionId;
+    private string _title = "";
+    private string? _description;
+    private int _points = 1;
+    private TicketPriority _priority = TicketPriority.Medium;
+    private TicketType _type = TicketType.Gap;
+    private DateOnly? _due;
+    private string? _error, _info;
+    private bool _busy;
+
+    private int CriterionId
+    {
+        get => _criterionId;
+        set
+        {
+            _criterionId = value;
+            if (Selected is { } c)
+            {
+                _points = Room(c);
+                if (string.IsNullOrWhiteSpace(_title)) _title = c.Name;
+            }
+        }
+    }
+
+    private IEnumerable<CriterionScoreDto> Claimable =>
+        _p?.Current?.Criteria.Where(c => c.Status != CriterionStatus.NotApplicable && Room(c) > 0) ?? [];
+
+    private CriterionScoreDto? Selected => _p?.Current?.Criteria.FirstOrDefault(c => c.CriterionId == _criterionId);
+
+    private static int Room(CriterionScoreDto c) => Math.Max(0, c.Max - c.PointsAwarded - c.OpenStake);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var r = await Api.GetAsync<ProjectDetail>($"api/projects/{Id}");
+        _p = r.Value;
+        _error = r.Error;
+        if (PreselectCriterionId is { } pre && _p?.Current?.Criteria.FirstOrDefault(c => c.CriterionId == pre) is { } c)
+        {
+            if (Room(c) > 0 && c.Status != CriterionStatus.NotApplicable) CriterionId = pre;
+            else _info = $"{c.Code} has no points left to claim: max {c.Max}, awarded {c.PointsAwarded}, already on open tickets {c.OpenStake}. Choose another criterion.";
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        if (Selected is null) { _error = "Choose a GBI criterion."; return; }
+        _busy = true;
+        try
+        {
+            var r = await Api.PostAsync<CreatedRef>($"api/projects/{Id}/tickets", new
+            {
+                criterionId = _criterionId,
+                title = _title,
+                description = _description,
+                pointsAtStake = _points,
+                type = _type,
+                priority = _priority,
+                dueDate = _due,
+            });
+            if (r.Ok && r.Value is not null) Nav.NavigateTo($"/tickets/{r.Value.Id}");
+            else _error = r.Error;
+        }
+        finally { _busy = false; }
+    }
+}

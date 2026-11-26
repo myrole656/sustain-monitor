@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SustainMonitor.Api/SustainMonitor.Api.csproj" />
+    <Project Path="src/SustainMonitor.Domain/SustainMonitor.Domain.csproj" />
+    <Project Path="src/SustainMonitor.Infrastructure/SustainMonitor.Infrastructure.csproj" />
+    <Project Path="src/SustainMonitor.Web/SustainMonitor.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SustainMonitor.Api.Tests/SustainMonitor.Api.Tests.csproj" />
+    <Project Path="tests/SustainMonitor.Domain.Tests/SustainMonitor.Domain.Tests.csproj" />
+    <Project Path="tests/SustainMonitor.Web.Tests/SustainMonitor.Web.Tests.csproj" />
+  </Folder>
+</Solution>
