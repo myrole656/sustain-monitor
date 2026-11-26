@@ -47,9 +47,14 @@ CODE=$(curl -s -o /dev/null -w '%{http_code}' "$API/api/verify/not-a-real-token"
 echo "Website"
 PAGE=$(curl -sS "$WEB/login")
 echo "$PAGE" | grep -q "blazor.web" && pass "login page served" || fail "login page did not include the Blazor script"
-CODE=$(curl -s -o /dev/null -w '%{http_code}' "$WEB/_framework/blazor.web.js")
-[ "$CODE" = "200" ] && pass "Blazor script served" || fail "blazor.web.js returned $CODE"
-CODE=$(curl -s -o /dev/null -w '%{http_code}' "$WEB/app.css")
-[ "$CODE" = "200" ] && pass "styles served" || fail "app.css returned $CODE"
+# Script and styles are linked with fingerprinted names (e.g. blazor.web.<hash>.js); follow the real links.
+JS=$(echo "$PAGE" | grep -oE 'src="[^"]*blazor\.web[^"]*\.js"' | head -1 | sed -E 's/^src="//; s/"$//')
+CSS=$(echo "$PAGE" | grep -oE 'href="[^"]*app[^"]*\.css"' | head -1 | sed -E 's/^href="//; s/"$//')
+[ -n "$JS" ] || fail "no Blazor script link on the page"
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$WEB/${JS#/}")
+[ "$CODE" = "200" ] && pass "Blazor script served ($JS)" || fail "$JS returned $CODE"
+[ -n "$CSS" ] || fail "no stylesheet link on the page"
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$WEB/${CSS#/}")
+[ "$CODE" = "200" ] && pass "styles served ($CSS)" || fail "$CSS returned $CODE"
 
 echo "All smoke tests passed."
