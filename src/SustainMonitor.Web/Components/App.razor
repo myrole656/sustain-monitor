@@ -8,6 +8,14 @@
     <title>Sustain Monitor</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <meta name="theme-color" content="#060a14" />
+    @* Set the theme before anything paints, so there is no flash of the wrong colours. *@
+    <script>
+        (function () {
+            var t; try { t = localStorage.getItem('sm-theme'); } catch (e) { }
+            if (t !== 'light' && t !== 'dark') t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            document.documentElement.dataset.theme = t;
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" />

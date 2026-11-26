@@ -22,4 +22,13 @@ window.sm = {
     },
     print: () => window.print(),
     origin: () => window.location.origin,
+    // Light/dark theme: saved choice wins, otherwise the system setting.
+    theme: () => document.documentElement.dataset.theme || 'dark',
+    toggleTheme: () => {
+        const next = (document.documentElement.dataset.theme === 'light') ? 'dark' : 'light';
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem('sm-theme', next); } catch { }
+        document.querySelector('meta[name=theme-color]')?.setAttribute('content', next === 'light' ? '#eef3f9' : '#060a14');
+        return next;
+    },
 };

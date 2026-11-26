@@ -1,0 +1,28 @@
+@inject IJSRuntime JS
+
+<button type="button" class="theme-toggle" @onclick="ToggleAsync" aria-label="@($"Switch to {(_theme == "light" ? "dark" : "light")} mode")">
+    <Icon Name="@(_theme == "light" ? "moon" : "sun")" Size="16" />
+    @(_theme == "light" ? "Dark mode" : "Light mode")
+</button>
+
+@code {
+    private string _theme = "dark";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _theme = await JS.InvokeAsync<string>("sm.theme") ?? "dark";
+            StateHasChanged();
+        }
+        catch (JSException) { }
+        catch (InvalidOperationException) { } // not interactive (prerender/static render)
+    }
+
+    private async Task ToggleAsync()
+    {
+        try { _theme = await JS.InvokeAsync<string>("sm.toggleTheme") ?? _theme; }
+        catch (JSException) { }
+    }
+}
