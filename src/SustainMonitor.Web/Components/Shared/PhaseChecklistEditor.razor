@@ -1,0 +1,76 @@
+@* One lifecycle phase's checklist. Execution is split into its five modules. *@
+@{
+    var items = PhaseChecklist.Items.Where(i => i.Phase == Phase).ToList();
+    var done = items.Count(i => Done.Contains(i.Key));
+}
+<div class="row-between mb-1">
+    <div>
+        <h2>@Labels.Of(Phase)</h2>
+        <p class="muted">@Intro</p>
+    </div>
+    <div class="row">
+        <span class="badge @(done == items.Count ? "badge-ok" : "")">@done / @items.Count done</span>
+        @if (!ReadOnly)
+        {
+            <button type="button" class="btn btn-ghost btn-sm" @onclick="() => SetAll(items, done != items.Count)">@(done == items.Count ? "Clear all" : "Tick all")</button>
+        }
+    </div>
+</div>
+
+@if (Phase == ProjectPhase.Execution)
+{
+    <div class="modules">
+        @foreach (var (module, n) in items.Select(i => i.Module!).Distinct().Select((m, n) => (m, n + 1)))
+        {
+            var mi = items.Where(i => i.Module == module).ToList();
+            <div class="module">
+                <div class="module-head"><span class="module-no">@n</span><b>@module</b><small>@mi.Count(i => Done.Contains(i.Key))/@mi.Count</small></div>
+                @foreach (var i in mi) { @Check(i) }
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="checks @(items.Count > 9 ? "checks-2" : "")">
+        @foreach (var i in items) { @Check(i) }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ProjectPhase Phase { get; set; }
+    [Parameter, EditorRequired] public HashSet<string> Done { get; set; } = [];
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public EventCallback DoneChanged { get; set; }
+
+    private string Intro => Phase switch
+    {
+        ProjectPhase.Initiation => "Early sustainability decisions before design starts.",
+        ProjectPhase.Planning => "Design-stage modelling and green systems.",
+        ProjectPhase.Execution => "On-site practice across five modules.",
+        ProjectPhase.Monitoring => "Keeping performance on track once in use.",
+        _ => "Wrapping up with salvage, recycling and audit records.",
+    };
+
+    private RenderFragment Check(ChecklistItem i) => __builder =>
+    {
+        var on = Done.Contains(i.Key);
+        <label class="check @(on ? "on" : "") @(ReadOnly ? "ro" : "")">
+            <input type="checkbox" checked="@on" disabled="@ReadOnly" @onchange="e => Toggle(i.Key, e.Value is true)" />
+            <span class="check-box"><Icon Name="check" Size="14" /></span>
+            <span>@i.Text</span>
+        </label>
+    };
+
+    private async Task Toggle(string key, bool on)
+    {
+        if (on) Done.Add(key); else Done.Remove(key);
+        await DoneChanged.InvokeAsync();
+    }
+
+    private async Task SetAll(List<ChecklistItem> items, bool on)
+    {
+        foreach (var i in items) { if (on) Done.Add(i.Key); else Done.Remove(i.Key); }
+        await DoneChanged.InvokeAsync();
+    }
+}

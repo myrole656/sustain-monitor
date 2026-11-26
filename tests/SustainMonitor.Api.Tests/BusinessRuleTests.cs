@@ -141,4 +141,36 @@ public class BusinessRuleTests(ApiFactory f) : IClassFixture<ApiFactory>
         var verify = await f.Anonymous().GetJson(verifyUrl);
         Assert.Equal("Revoked", verify.Str("status"));
     }
+
+    [Fact]
+    public async Task Wizard_checklist_is_saved_and_only_the_pm_edits_it()
+    {
+        var team = await CompanyTeam.CreateAsync(f);
+        var tools = await team.Pm.GetJson("/api/tools");
+        var nreb = tools.EnumerateArray().Single(t => t.Str("code") == "NREB").Int("id");
+        var code = "W" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+
+        var bad = await team.Pm.PostJson("/api/projects", new { code, name = "Wizard", toolId = nreb, checklist = new[] { "nope" } });
+        Assert.Contains("nope", await bad.Fails(HttpStatusCode.BadRequest));
+
+        var created = await (await team.Pm.PostJson("/api/projects", new
+        {
+            code, name = "Wizard", toolId = nreb,
+            checklist = new[] { "init.site_selection", "init.waste_plan", "exec.energy.led" },
+        })).Json200();
+        var id = created.Int("id");
+
+        var list = await team.Ceo.GetJson($"/api/projects/{id}/checklist");
+        Assert.Equal(3, list.GetProperty("done").GetArrayLength());
+        Assert.Equal("Initiation", list.Str("currentPhase"));
+        Assert.False(list.GetProperty("canEdit").GetBoolean());
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await team.Ceo.PutJson($"/api/projects/{id}/checklist", new { done = new[] { "init.site_selection" } })).StatusCode);
+        var updated = await (await team.Pm.PutJson($"/api/projects/{id}/checklist", new { done = new[] { "mon.monthly_review" } })).Json200();
+        Assert.Equal(1, updated.GetProperty("done").GetArrayLength());
+
+        var detail = await team.Pm.GetJson($"/api/projects/{id}");
+        Assert.Equal(5, detail.GetProperty("phases").GetArrayLength());
+    }
 }

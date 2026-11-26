@@ -24,7 +24,20 @@ public static class DbInitializer
         if (db.Database.GetMigrations().Any())
             await db.Database.MigrateAsync();
         else
+        {
             await db.Database.EnsureCreatedAsync(); // before the first migration is added
+            // EnsureCreated never alters an existing file: add tables introduced after a test database was made.
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "ProjectChecklist" (
+                    "ProjectId" INTEGER NOT NULL,
+                    "ItemKey" TEXT NOT NULL,
+                    "CheckedById" TEXT NULL,
+                    "CheckedAt" TEXT NOT NULL,
+                    CONSTRAINT "PK_ProjectChecklist" PRIMARY KEY ("ProjectId", "ItemKey"),
+                    CONSTRAINT "FK_ProjectChecklist_Projects_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Projects" ("Id") ON DELETE CASCADE
+                );
+                """);
+        }
 
         // WAL lets the UI read while a re-score job writes. The setting is stored in the file.
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");

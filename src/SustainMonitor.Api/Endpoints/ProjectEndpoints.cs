@@ -5,6 +5,7 @@ using SustainMonitor.Domain;
 using SustainMonitor.Domain.Certificates;
 using SustainMonitor.Domain.Companies;
 using SustainMonitor.Domain.Entities;
+using SustainMonitor.Domain.Projects;
 using SustainMonitor.Domain.Scoring;
 using SustainMonitor.Domain.Security;
 using SustainMonitor.Infrastructure.Data;
@@ -13,7 +14,7 @@ namespace SustainMonitor.Api.Endpoints;
 
 public record CreateProjectRequest(
     string Code, string Name, int ToolId, string? Location, string? BuildingType, decimal? GfaM2,
-    string? TargetRating, DateOnly? RegDate, string? PicName, string? PicContact);
+    string? TargetRating, DateOnly? RegDate, string? PicName, string? PicContact, List<string>? Checklist = null);
 
 public record BaselineRequest(AssessmentStage Stage, List<ScoreInputDto> Scores);
 
@@ -60,6 +61,9 @@ public static class ProjectEndpoints
                 errors["name"] = ["Name is required."];
             if (!await db.GbiTools.AnyAsync(t => t.Id == req.ToolId && t.IsActive))
                 errors["toolId"] = ["Unknown GBI tool."];
+            IReadOnlyList<string> checklist = [];
+            try { checklist = PhaseChecklist.Normalize(req.Checklist); }
+            catch (ChecklistException ex) { errors["checklist"] = [ex.Message]; }
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
             var project = new Project
@@ -76,6 +80,7 @@ public static class ProjectEndpoints
                 PicName = req.PicName,
                 PicContact = req.PicContact,
                 CreatedById = m.UserId,
+                Checklist = checklist.Select(k => new ProjectChecklistEntry { ItemKey = k, CheckedById = m.UserId }).ToList(),
             };
             db.Projects.Add(project);
             db.AuditLogs.Add(new AuditLog { UserId = m.UserId, Action = "Create", Entity = nameof(Project), EntityId = code });
@@ -123,6 +128,7 @@ public static class ProjectEndpoints
 
             var openStake = tickets.Where(t => t.Status != TicketStatus.Done)
                 .GroupBy(t => t.CriterionId).ToDictionary(g => g.Key, g => g.Sum(t => t.PointsAtStake));
+            var ticked = await db.ProjectChecklist.AsNoTracking().Where(c => c.ProjectId == id).Select(c => c.ItemKey).ToListAsync();
             var categoryNames = tool!.Categories.ToDictionary(c => c.Id, c => (c.Code, c.Name));
             var categoryOfCriterion = tool.Categories.SelectMany(c => c.Criteria.Select(x => (x.Id, c.Code))).ToDictionary(x => x.Id, x => x.Code);
             var criterionInfo = tool.Categories.SelectMany(c => c.Criteria).ToDictionary(c => c.Id, c => (c.Code, c.Name, c.MaxPoints));
@@ -132,6 +138,8 @@ public static class ProjectEndpoints
                 project.TargetRating, project.ToolId, Tool = new { tool.Code, tool.Name, tool.Version },
                 MyRole = m.Role,
                 Progress = progress,
+                Phases = PhaseChecklist.Progress(ticked),
+                CurrentPhase = PhaseChecklist.CurrentPhase(ticked),
                 Current = current is null ? null : new
                 {
                     current.Id, current.VersionNo, current.TotalPoints, current.Rating, current.CreatedAt, current.Trigger,

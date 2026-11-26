@@ -74,6 +74,9 @@ public static class Http
     public static Task<HttpResponseMessage> PostJson(this HttpClient c, string url, object? body = null) =>
         c.PostAsync(url, body is null ? null : JsonContent.Create(body, options: Json));
 
+    public static Task<HttpResponseMessage> PutJson(this HttpClient c, string url, object body) =>
+        c.PutAsync(url, JsonContent.Create(body, options: Json));
+
     public static async Task<JsonElement> Json200(this HttpResponseMessage res)
     {
         var text = await res.Content.ReadAsStringAsync();

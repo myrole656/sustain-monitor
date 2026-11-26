@@ -1,0 +1,86 @@
+@page "/projects/{Id:int}/lifecycle"
+@inject ApiClient Api
+
+<PageTitle>Lifecycle · Sustain Monitor</PageTitle>
+
+@if (_p is null || _c is null)
+{
+    <Alert Text="@_error" />
+    @if (_error is null) { <Loading /> }
+}
+else
+{
+    <ProjectHeader Project="_p" Active="lifecycle" />
+
+    <ol class="stepper stepper-5" aria-label="Lifecycle phases">
+        @foreach (var ph in PhaseChecklist.Progress(_done))
+        {
+            var phase = ph.Phase;
+            <li class="@(phase == _phase ? "current" : ph.Complete ? "done" : "")">
+                <button type="button" @onclick="() => _phase = phase">
+                    <span class="step-dot">@if (ph.Complete && phase != _phase) { <Icon Name="check" Size="14" /> } else { @((int)phase + 1) }</span>
+                    <span class="step-label">@Labels.Of(phase)<small>@ph.Done/@ph.Total</small></span>
+                </button>
+            </li>
+        }
+    </ol>
+
+    <div class="card wizard-card">
+        <PhaseChecklistEditor Phase="_phase" Done="_done" ReadOnly="!_c.CanEdit" DoneChanged="() => _dirty = true" />
+    </div>
+
+    <div class="wizard-nav">
+        <button class="btn btn-ghost" type="button" disabled="@(_phase == ProjectPhase.Initiation)" @onclick="() => _phase--"><Icon Name="arrow-left" /> Back</button>
+        @if (_c.CanEdit)
+        {
+            <span>
+                @if (_saved) { <span class="badge badge-ok">Saved</span> }
+                <button class="btn btn-glow" disabled="@(!_dirty || _busy)" @onclick="SaveAsync">@(_busy ? "Saving…" : "Save checklist")</button>
+            </span>
+        }
+        else
+        {
+            <small class="muted">Only the Project Manager updates the checklist.</small>
+        }
+        <button class="btn btn-ghost" type="button" disabled="@(_phase == ProjectPhase.Closing)" @onclick="() => _phase++">Next <Icon Name="arrow-right" /></button>
+    </div>
+    <Alert Text="@_error" />
+    <p class="muted mt-1"><small>The lifecycle checklist tracks site practice alongside the GBI score. GBI points still change only through approved CO-tickets.</small></p>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ProjectDetail? _p;
+    private ProjectChecklistDto? _c;
+    private HashSet<string> _done = [];
+    private ProjectPhase _phase;
+    private bool _dirty, _busy, _saved;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var p = await Api.GetAsync<ProjectDetail>($"api/projects/{Id}");
+        _p = p.Value;
+        _error = p.Error;
+        var c = await Api.GetAsync<ProjectChecklistDto>($"api/projects/{Id}/checklist");
+        _c = c.Value;
+        _error ??= c.Error;
+        if (_c is null) return;
+        _done = _c.Done.ToHashSet();
+        _phase = _c.CurrentPhase;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _saved = false;
+        _error = null;
+        try
+        {
+            var r = await Api.PutAsync<ProjectChecklistDto>($"api/projects/{Id}/checklist", new { done = _done.ToList() });
+            if (r.Ok) { _dirty = false; _saved = true; } else _error = r.Error;
+        }
+        finally { _busy = false; }
+    }
+}

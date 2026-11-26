@@ -29,7 +29,7 @@ else
         <table class="table">
             @foreach (var n in _items)
             {
-                <tr style="@(n.ReadAt is null ? "background:#f3faf7" : "")">
+                <tr style="@(n.ReadAt is null ? "background:rgba(46,230,166,.06)" : "")">
                     <td style="width:12px">@if (n.ReadAt is null) { <span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--brand)"></span> }</td>
                     <td>
                         <b>@n.Subject</b>

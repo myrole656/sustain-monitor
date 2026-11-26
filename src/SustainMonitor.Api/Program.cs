@@ -11,6 +11,7 @@ using SustainMonitor.Api.Services;
 using SustainMonitor.Domain;
 using SustainMonitor.Domain.Certificates;
 using SustainMonitor.Domain.Companies;
+using SustainMonitor.Domain.Projects;
 using SustainMonitor.Domain.Scoring;
 using SustainMonitor.Domain.Tickets;
 using SustainMonitor.Infrastructure;
@@ -88,7 +89,7 @@ await DbInitializer.InitializeAsync(app.Services, app.Configuration);
 app.UseExceptionHandler(handler => handler.Run(async ctx =>
 {
     var ex = ctx.Features.Get<IExceptionHandlerFeature>()?.Error;
-    var isRule = ex is ScoringException or TicketWorkflowException or ECertificateException or CompanyException or InvalidDataException;
+    var isRule = ex is ScoringException or TicketWorkflowException or ECertificateException or CompanyException or ChecklistException or InvalidDataException;
     var status = isRule ? StatusCodes.Status400BadRequest : StatusCodes.Status500InternalServerError;
     await Results.Problem(
         title: isRule ? "Not allowed" : "Unexpected error",
@@ -139,6 +140,7 @@ app.MapCompanyEndpoints();
 app.MapAdminEndpoints();
 app.MapCatalogueEndpoints();
 app.MapProjectEndpoints();
+app.MapChecklistEndpoints();
 app.MapTicketEndpoints();
 app.MapCertificateEndpoints();
 app.MapNotificationEndpoints();

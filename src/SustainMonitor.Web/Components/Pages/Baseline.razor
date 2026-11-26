@@ -51,107 +51,35 @@ else
     }
     else
     {
-        <div class="grid grid-main">
-            <div class="card">
-                <div class="card-title">
-                    <h2>Score each GBI criterion</h2>
-                    <div class="row">
-                        <select @bind="_stage" style="width:auto">
-                            @foreach (var s in Enum.GetValues<AssessmentStage>())
-                            {
-                                <option value="@s">@Labels.Of(s)</option>
-                            }
-                        </select>
-                    </div>
-                </div>
-                <p class="muted">Target = points you plan to earn. Awarded = points the project already meets today, with evidence. Mark criteria that cannot apply as Not applicable. The GBI analysis unlocks when 80% of your targeted points are confirmed.</p>
-                <div class="row mb-1">
-                    <button class="btn btn-ghost btn-sm" type="button" @onclick="TargetAllMax">Target every criterion at max</button>
-                    <button class="btn btn-ghost btn-sm" type="button" @onclick="TargetAwarded">Target = awarded</button>
-                    <button class="btn btn-ghost btn-sm" type="button" @onclick="ClearTargets">Clear targets</button>
-                </div>
-                <div class="table-wrap">
-                    <table class="table">
-                        <thead><tr><th>Code</th><th>Criterion</th><th>Status</th><th class="num">Target</th><th class="num">Awarded</th><th class="num">Max</th></tr></thead>
-                        <tbody>
-                            @foreach (var cat in _tool.Categories)
-                            {
-                                <tr class="group"><td colspan="6">@cat.Code — @cat.Name (max @cat.MaxPoints)</td></tr>
-                                @foreach (var c in cat.Criteria)
-                                {
-                                    var row = _rows[c.Id];
-                                    <tr>
-                                        <td><b>@c.Code</b></td>
-                                        <td>
-                                            @c.Name
-                                            @if (row.Max != c.MaxPoints)
-                                            {
-                                                <br /><small>Max @row.Max for this project's floor area</small>
-                                            }
-                                        </td>
-                                        <td>
-                                            <select @bind="row.Status">
-                                                @foreach (var s in Enum.GetValues<CriterionStatus>())
-                                                {
-                                                    <option value="@s">@Labels.Of(s)</option>
-                                                }
-                                            </select>
-                                        </td>
-                                        <td class="num"><input type="number" min="0" max="@row.Max" @bind="row.Target" disabled="@(row.Status == CriterionStatus.NotApplicable)" /></td>
-                                        <td class="num"><input type="number" min="0" max="@row.Max" @bind="row.Awarded" disabled="@(row.Status == CriterionStatus.NotApplicable)" class="@(row.Awarded > row.Max ? "invalid" : "")" /></td>
-                                        <td class="num">@row.Max</td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div>
-                <div class="card" style="position:sticky;top:1rem">
-                    <h2>Baseline total</h2>
-                    <div class="stat mt-1">
-                        <span class="stat-value">@Awarded <small style="font-size:1rem">/ 100</small></span>
-                        <span><RatingBadge Rating="@RatingFor(Awarded)" /> <small>targeting @Targeted (@RatingFor(Targeted))</small></span>
-                        @if (TargetMin is { } need && Targeted < need)
+        <BaselineEditor @ref="_editor" Tool="_tool" GfaM2="_p.GfaM2" TargetRating="@_p.TargetRating">
+            <Actions>
+                <div class="field mb-1">
+                    <label for="stage">Assessment stage</label>
+                    <select id="stage" @bind="_stage">
+                        @foreach (var s in Enum.GetValues<AssessmentStage>())
                         {
-                            <small style="color:var(--warn)">Targets add up to @Targeted. @(_p.TargetRating) needs at least @need.</small>
+                            <option value="@s">@Labels.Of(s)</option>
                         }
-                    </div>
-                    <ScoreBar Confirmed="Awarded" Projected="Targeted" />
-                    <div class="legend mb-1"><span><i class="l-confirmed"></i>Awarded now</span><span><i class="l-projected"></i>Target</span></div>
-                    <Alert Text="@_error" />
-                    <button class="btn w-100" disabled="@_busy" @onclick="SubmitAsync">@(_busy ? "Saving…" : "Submit baseline")</button>
-                    <small class="mt-1" style="display:block">You can submit the baseline once. After that, scores change only through approved CO-tickets.</small>
+                    </select>
                 </div>
-            </div>
-        </div>
+                <Alert Text="@_error" />
+                <button class="btn btn-glow w-100" disabled="@_busy" @onclick="SubmitAsync">@(_busy ? "Saving…" : "Submit baseline")</button>
+                <small class="mt-1" style="display:block">You can submit the baseline once. After that, scores change only through approved CO-tickets.</small>
+            </Actions>
+        </BaselineEditor>
     }
 }
 
 @code {
     [Parameter] public int Id { get; set; }
 
-    private sealed class Row
-    {
-        public int Max { get; set; }
-        public CriterionStatus Status { get; set; } = CriterionStatus.NotStarted;
-        public int Target { get; set; }
-        public int Awarded { get; set; }
-    }
-
     private ProjectDetail? _p;
     private ToolDetail? _tool;
-    private readonly Dictionary<int, Row> _rows = [];
+    private BaselineEditor? _editor;
     private AssessmentStage _stage = AssessmentStage.SelfCheck;
     private BaselineResult? _result;
     private string? _error;
     private bool _busy;
-
-    private IEnumerable<Row> Active => _rows.Values.Where(r => r.Status != CriterionStatus.NotApplicable);
-    private int Awarded => Active.Sum(r => Math.Min(r.Awarded, r.Max));
-    private int Targeted => Active.Sum(r => Math.Min(r.Target, r.Max));
 
     protected override async Task OnInitializedAsync()
     {
@@ -162,53 +90,17 @@ else
         var t = await Api.GetAsync<ToolDetail>($"api/tools/{_p.ToolId}");
         _tool = t.Value;
         _error ??= t.Error;
-        if (_tool is null) return;
-
-        foreach (var c in _tool.Categories.SelectMany(x => x.Criteria))
-        {
-            var max = c.MaxPoints;
-            // Same rule as the scoring engine: Interiors EE2 uses its 6-point version above 300 m².
-            foreach (var v in c.Variants)
-                if (v.ConditionKey == "GfaAbove300" && _p.GfaM2 is > 300m) max = v.MaxPoints;
-            _rows[c.Id] = new Row { Max = max };
-        }
     }
-
-    private int? TargetMin => _tool?.RatingBands.FirstOrDefault(b => b.Name == _p?.TargetRating)?.MinPoints;
-
-    private void TargetAllMax() { foreach (var r in _rows.Values) r.Target = r.Max; }
-    private void TargetAwarded() { foreach (var r in _rows.Values) r.Target = Math.Max(r.Target, r.Awarded); }
-    private void ClearTargets() { foreach (var r in _rows.Values) r.Target = 0; }
-
-    private string RatingFor(int points) =>
-        _tool?.RatingBands.OrderByDescending(b => b.MinPoints).FirstOrDefault(b => points >= b.MinPoints)?.Name ?? "Not rated";
 
     private async Task SubmitAsync()
     {
-        _error = null;
-        var bad = _rows.Where(kv => kv.Value.Status != CriterionStatus.NotApplicable &&
-                                    (kv.Value.Awarded > kv.Value.Max || kv.Value.Target > kv.Value.Max || kv.Value.Awarded < 0 || kv.Value.Target < 0)).ToList();
-        if (bad.Count > 0)
-        {
-            _error = $"{bad.Count} criteria have points outside 0 to max. Fix the highlighted rows.";
-            return;
-        }
-
-        var scores = _rows.Select(kv => new
-        {
-            criterionId = kv.Key,
-            status = kv.Value.Status == CriterionStatus.NotApplicable ? CriterionStatus.NotApplicable
-                   : kv.Value.Awarded >= kv.Value.Target && kv.Value.Target > 0 ? CriterionStatus.Achieved
-                   : kv.Value.Awarded > 0 && kv.Value.Status == CriterionStatus.NotStarted ? CriterionStatus.InProgress
-                   : kv.Value.Status,
-            pointsTargeted = kv.Value.Status == CriterionStatus.NotApplicable ? 0 : kv.Value.Target,
-            pointsAwarded = kv.Value.Status == CriterionStatus.NotApplicable ? 0 : kv.Value.Awarded,
-        }).ToList();
-
+        if (_editor is null) return;
+        _error = _editor.Validate();
+        if (_error is not null) return;
         _busy = true;
         try
         {
-            var r = await Api.PostAsync<BaselineResult>($"api/projects/{Id}/baseline", new { stage = _stage, scores });
+            var r = await Api.PostAsync<BaselineResult>($"api/projects/{Id}/baseline", new { stage = _stage, scores = _editor.BuildScores() });
             if (r.Ok) _result = r.Value; else _error = r.Error;
         }
         finally { _busy = false; }

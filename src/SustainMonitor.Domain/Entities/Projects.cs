@@ -26,12 +26,23 @@ public class Project
 
     public List<Assessment> Assessments { get; set; } = [];
     public List<Ticket> Tickets { get; set; } = [];
+    public List<ProjectChecklistEntry> Checklist { get; set; } = [];
 }
 
 /// <summary>
 /// An immutable scoring snapshot. A re-score never edits an assessment; it inserts a new one
 /// with VersionNo + 1 and moves IsCurrent.
 /// </summary>
+/// <summary>A ticked lifecycle checklist item (see Projects.PhaseChecklist). Unticked items have no row.</summary>
+public class ProjectChecklistEntry
+{
+    public int ProjectId { get; set; }
+    public Project? Project { get; set; }
+    public required string ItemKey { get; set; }
+    public string? CheckedById { get; set; }
+    public DateTime CheckedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Assessment
 {
     public int Id { get; set; }

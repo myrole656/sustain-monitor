@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SustainMonitor.Domain;
+using SustainMonitor.Domain.Projects;
 using SustainMonitor.Domain.Scoring;
 
 namespace SustainMonitor.Web.Models;
@@ -34,7 +35,9 @@ public record CriterionScoreDto(int CriterionId, string Code, string Name, strin
 public record CurrentDetail(int Id, int VersionNo, int TotalPoints, string Rating, DateTime CreatedAt, AssessmentTrigger Trigger,
     List<CategoryScoreDto> Categories, List<CriterionScoreDto> Criteria);
 public record ProjectDetail(int Id, string Code, string Name, string? Location, string? BuildingType, decimal? GfaM2,
-    string? TargetRating, int ToolId, ToolInfo Tool, CompanyRole MyRole, ProgressReport? Progress, CurrentDetail? Current);
+    string? TargetRating, int ToolId, ToolInfo Tool, CompanyRole MyRole, ProgressReport? Progress, CurrentDetail? Current,
+    List<PhaseProgress>? Phases = null, ProjectPhase? CurrentPhase = null);
+public record ProjectChecklistDto(List<string> Done, List<PhaseProgress> Phases, ProjectPhase CurrentPhase, bool CanEdit);
 public record HistoryItem(int VersionNo, int TotalPoints, string Rating, AssessmentTrigger Trigger, int? TriggerTicketId, DateTime CreatedAt);
 public record CreatedRef(int Id, string? Code, string? Name, string? Key);
 public record SuggestedTicket(int CriterionId, string CriterionCode, string CriterionName, string CategoryCode, int PointsAtStake);

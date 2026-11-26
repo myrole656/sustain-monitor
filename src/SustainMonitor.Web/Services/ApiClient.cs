@@ -36,6 +36,12 @@ public sealed class ApiClient(HttpClient http, AuthSession session, NavigationMa
             Content = body is null ? null : JsonContent.Create(body, options: Json),
         });
 
+    public Task<ApiResult<T>> PutAsync<T>(string url, object body) =>
+        SendAsync<T>(() => new HttpRequestMessage(HttpMethod.Put, url)
+        {
+            Content = JsonContent.Create(body, options: Json),
+        });
+
     public async Task<ApiResult<bool>> PostAsync(string url, object? body = null)
     {
         var r = await SendAsync<JsonElement>(() => new HttpRequestMessage(HttpMethod.Post, url)

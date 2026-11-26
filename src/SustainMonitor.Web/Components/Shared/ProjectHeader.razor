@@ -11,9 +11,10 @@
         @ChildContent
     </div>
 </div>
-<div class="row mb-2" role="tablist">
+<div class="tabs mb-2" role="tablist">
     <a class="btn btn-sm @(Active == "overview" ? "" : "btn-ghost")" href="/projects/@Project.Id"><Icon Name="chart" /> Overview</a>
     <a class="btn btn-sm @(Active == "board" ? "" : "btn-ghost")" href="/projects/@Project.Id/board"><Icon Name="board" /> CO-ticket board</a>
+    <a class="btn btn-sm @(Active == "lifecycle" ? "" : "btn-ghost")" href="/projects/@Project.Id/lifecycle"><Icon Name="leaf" /> Lifecycle</a>
     @if (Project.Current is null && Project.MyRole == CompanyRole.ProjectManager)
     {
         <a class="btn btn-sm @(Active == "baseline" ? "" : "btn-ghost")" href="/projects/@Project.Id/baseline"><Icon Name="check" /> Baseline</a>

@@ -9,7 +9,7 @@
 <div class="page-head">
     <div>
         <h1>New project</h1>
-        <p>Pick the GBI tool that fits the building. Next you'll score the baseline for each GBI criterion.</p>
+        <p>Step through the project lifecycle, then score the GBI baseline. You can jump between steps and come back.</p>
     </div>
 </div>
 
@@ -19,74 +19,174 @@
 }
 else
 {
-    <div class="card" style="max-width:820px">
-        <Alert Text="@_error" />
-        <form class="form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
-            <div class="form-grid">
-                <div class="field">
-                    <label for="code">Project code</label>
-                    <input id="code" @bind="_m.Code" maxlength="10" placeholder="KLT" required />
-                    <span class="hint">2–10 letters or numbers. Used in ticket numbers, e.g. KLT-CO-0001</span>
+    <ol class="stepper" aria-label="Wizard steps">
+        @for (var i = 0; i < Steps.Length; i++)
+        {
+            var n = i;
+            <li class="@StepCss(n)">
+                <button type="button" @onclick="() => GoTo(n)" aria-current="@(n == _step ? "step" : null)">
+                    <span class="step-dot">@if (StepDone(n) && n != _step) { <Icon Name="check" Size="14" /> } else { @(n + 1) }</span>
+                    <span class="step-label">@Steps[n].Title<small>@StepHint(n)</small></span>
+                </button>
+            </li>
+        }
+    </ol>
+
+    <Alert Text="@_error" />
+
+    @switch (_step)
+    {
+        case 0:
+            <div class="card wizard-card">
+                <h2>Project info</h2>
+                <p class="muted">Basic details and the GBI tool that fits the building.</p>
+                <div class="form-grid mt-1">
+                    <div class="field">
+                        <label for="code">Project code</label>
+                        <input id="code" @bind="_m.Code" @bind:event="oninput" maxlength="10" placeholder="KLT" />
+                        <span class="hint">2–10 letters or numbers. Used in ticket numbers, e.g. KLT-CO-0001</span>
+                    </div>
+                    <div class="field">
+                        <label for="name">Project name</label>
+                        <input id="name" @bind="_m.Name" @bind:event="oninput" placeholder="Kelulut HQ" />
+                    </div>
+                    <div class="field span-2">
+                        <label for="tool">GBI tool</label>
+                        <select id="tool" @bind="_m.ToolId">
+                            @foreach (var t in _tools)
+                            {
+                                <option value="@t.Id">GBI @t.Code — @t.Name (v@(t.Version))</option>
+                            }
+                        </select>
+                        <span class="hint">NREB = Non-Residential Existing Building. ID = Interiors (fit-outs).</span>
+                    </div>
+                    <div class="field">
+                        <label for="loc">Project location</label>
+                        <input id="loc" @bind="_m.Location" />
+                    </div>
+                    <div class="field">
+                        <label for="type">Building type</label>
+                        <input id="type" @bind="_m.BuildingType" placeholder="Office, retail, hospital…" />
+                    </div>
+                    <div class="field">
+                        <label for="gfa">Gross floor area (m²)</label>
+                        <input id="gfa" type="number" min="0" step="1" @bind="_m.GfaM2" />
+                        <span class="hint">Some criteria depend on it, e.g. Interiors EE2</span>
+                    </div>
+                    <div class="field">
+                        <label for="target">Certification target</label>
+                        <select id="target" @bind="_m.TargetRating">
+                            <option value="Certified">Certified (50+)</option>
+                            <option value="Silver">Silver (66+)</option>
+                            <option value="Gold">Gold (76+)</option>
+                            <option value="Platinum">Platinum (86+)</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="reg">Registration date</label>
+                        <input id="reg" type="date" @bind="_m.RegDate" />
+                    </div>
+                    <div></div>
+                    <div class="field">
+                        <label for="pic">PIC name</label>
+                        <input id="pic" @bind="_m.PicName" />
+                    </div>
+                    <div class="field">
+                        <label for="picc">PIC contact</label>
+                        <input id="picc" @bind="_m.PicContact" />
+                    </div>
                 </div>
-                <div class="field">
-                    <label for="name">Project name</label>
-                    <input id="name" @bind="_m.Name" placeholder="Kelulut HQ" required />
-                </div>
-                <div class="field span-2">
-                    <label for="tool">GBI tool</label>
-                    <select id="tool" @bind="_m.ToolId">
-                        @foreach (var t in _tools)
+            </div>
+            break;
+
+        case >= 1 and <= 5:
+            <div class="card wizard-card">
+                <PhaseChecklistEditor Phase="@Steps[_step].Phase!.Value" Done="_done" DoneChanged="StateHasChanged" />
+            </div>
+            break;
+
+        case 6:
+            @if (_tool is null) { <Loading /> }
+            break;
+
+        default:
+            <div class="grid grid-main">
+                <div class="card wizard-card">
+                    <h2>Review</h2>
+                    <dl class="review">
+                        <dt>Project</dt><dd><b>@Code</b> · @_m.Name</dd>
+                        <dt>GBI tool</dt><dd>@(_tools.FirstOrDefault(x => x.Id == _m.ToolId) is { } tl ? $"GBI {tl.Code} — {tl.Name}" : "—")</dd>
+                        <dt>Location</dt><dd>@(_m.Location ?? "—") · @(_m.BuildingType ?? "—") · @(_m.GfaM2?.ToString("0") ?? "—") m²</dd>
+                        <dt>Target</dt><dd>@_m.TargetRating</dd>
+                        <dt>PIC</dt><dd>@(_m.PicName ?? "—") @(_m.PicContact is null ? "" : $"· {_m.PicContact}")</dd>
+                    </dl>
+                    <h3 class="mt-2">Lifecycle checklist</h3>
+                    <div class="phase-strip">
+                        @foreach (var p in PhaseChecklist.Progress(_done))
                         {
-                            <option value="@t.Id">GBI @t.Code — @t.Name (v@t.Version)</option>
+                            <div class="phase-pill @(p.Complete ? "done" : p.Done > 0 ? "part" : "")">
+                                <b>@Labels.Of(p.Phase)</b><small>@p.Done / @p.Total</small>
+                                <div class="mini-track"><div style="width:@(p.Total == 0 ? 0 : p.Done * 100 / p.Total)%"></div></div>
+                            </div>
                         }
-                    </select>
-                    <span class="hint">NREB = Non-Residential Existing Building. ID = Interiors (fit-outs).</span>
+                    </div>
                 </div>
-                <div class="field">
-                    <label for="loc">Location</label>
-                    <input id="loc" @bind="_m.Location" />
-                </div>
-                <div class="field">
-                    <label for="type">Building type</label>
-                    <input id="type" @bind="_m.BuildingType" placeholder="Office, retail, hospital…" />
-                </div>
-                <div class="field">
-                    <label for="gfa">Gross floor area (m²)</label>
-                    <input id="gfa" type="number" min="0" step="1" @bind="_m.GfaM2" />
-                    <span class="hint">Some criteria depend on it, e.g. Interiors EE2</span>
-                </div>
-                <div class="field">
-                    <label for="target">Target rating</label>
-                    <select id="target" @bind="_m.TargetRating">
-                        <option value="Certified">Certified (50+)</option>
-                        <option value="Silver">Silver (66+)</option>
-                        <option value="Gold">Gold (76+)</option>
-                        <option value="Platinum">Platinum (86+)</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label for="reg">Registration date</label>
-                    <input id="reg" type="date" @bind="_m.RegDate" />
-                </div>
-                <div></div>
-                <div class="field">
-                    <label for="pic">Person in charge</label>
-                    <input id="pic" @bind="_m.PicName" />
-                </div>
-                <div class="field">
-                    <label for="picc">PIC contact</label>
-                    <input id="picc" @bind="_m.PicContact" />
+                <div class="card sticky">
+                    <h2>GBI baseline</h2>
+                    @if (_editor is not null && _editor.Targeted > 0)
+                    {
+                        <ScoreRing Value="_editor.Awarded" Target="_editor.Targeted" Rating="@_editor.RatingFor(_editor.Awarded)" />
+                        <p class="center mt-1"><small>Targeting <b>@_editor.Targeted</b> · progress @(_editor.Awarded * 100 / _editor.Targeted)%</small></p>
+                    }
+                    else
+                    {
+                        <p class="muted">No targets set. The project is created without a baseline; score it later from the project page.</p>
+                    }
+                    <button class="btn btn-glow w-100 mt-1" disabled="@_busy" @onclick="CreateAsync">
+                        @(_busy ? "Creating…" : "Create project") <Icon Name="arrow-right" />
+                    </button>
                 </div>
             </div>
-            <div class="row-between mt-1">
-                <a href="/projects">Cancel</a>
-                <button class="btn" type="submit" disabled="@_busy">Create and score baseline <Icon Name="arrow-right" /></button>
-            </div>
-        </form>
+            break;
+    }
+
+    @if (_tool is not null)
+    {
+        @* Kept alive across steps so the scores survive moving back and forth. *@
+        <div hidden="@(_step != 6)">
+            <BaselineEditor @ref="_editor" Tool="_tool" GfaM2="_m.GfaM2" TargetRating="@_m.TargetRating">
+                <Actions>
+                    <small>You can also leave every target at 0 and score the baseline later from the project page.</small>
+                </Actions>
+            </BaselineEditor>
+        </div>
+    }
+
+    <div class="wizard-nav">
+        <button class="btn btn-ghost" type="button" disabled="@(_step == 0)" @onclick="() => GoTo(_step - 1)"><Icon Name="arrow-left" /> Back</button>
+        <a href="/projects" class="muted">Cancel</a>
+        @if (_step < Steps.Length - 1)
+        {
+            <button class="btn" type="button" @onclick="() => GoTo(_step + 1)">Next: @Steps[_step + 1].Title <Icon Name="arrow-right" /></button>
+        }
     </div>
 }
 
 @code {
+    private sealed record Step(string Title, ProjectPhase? Phase = null);
+
+    private static readonly Step[] Steps =
+    [
+        new("Project info"),
+        new("Initiation", ProjectPhase.Initiation),
+        new("Planning", ProjectPhase.Planning),
+        new("Execution", ProjectPhase.Execution),
+        new("Monitoring", ProjectPhase.Monitoring),
+        new("Closing", ProjectPhase.Closing),
+        new("GBI baseline"),
+        new("Review"),
+    ];
+
     private sealed class Model
     {
         public string Code { get; set; } = "";
@@ -102,9 +202,16 @@ else
     }
 
     private readonly Model _m = new();
+    private readonly HashSet<string> _done = [];
     private List<ToolSummary> _tools = [];
+    private ToolDetail? _tool;
+    private BaselineEditor? _editor;
+    private int _step;
+    private int? _createdId;
     private string? _error;
     private bool _busy;
+
+    private string Code => (_m.Code ?? "").Trim().ToUpperInvariant();
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,15 +221,87 @@ else
         if (_tools.Count > 0) _m.ToolId = _tools[0].Id;
     }
 
-    private async Task SubmitAsync()
+    private string? InfoError()
     {
+        if (Code.Length is < 2 or > 10 || !Code.All(char.IsLetterOrDigit)) return "Project code must be 2–10 letters or numbers, e.g. KLT.";
+        if (string.IsNullOrWhiteSpace(_m.Name)) return "Project name is required.";
+        if (_m.ToolId == 0) return "Pick a GBI tool.";
+        return null;
+    }
+
+    private bool StepDone(int n) => n switch
+    {
+        0 => InfoError() is null,
+        >= 1 and <= 5 => PhaseChecklist.Progress(_done)[n - 1].Done > 0,
+        6 => _editor?.Targeted > 0,
+        _ => false,
+    };
+
+    private string StepHint(int n) => n switch
+    {
+        0 => InfoError() is null ? Code : "required",
+        >= 1 and <= 5 => $"{PhaseChecklist.Progress(_done)[n - 1].Done}/{PhaseChecklist.Progress(_done)[n - 1].Total}",
+        6 => _editor is null ? "GBI points" : $"{_editor.Awarded} pts",
+        _ => "create",
+    };
+
+    private string StepCss(int n) => n == _step ? "current" : StepDone(n) ? "done" : "";
+
+    private async Task GoTo(int n)
+    {
+        if (n < 0 || n >= Steps.Length) return;
         _error = null;
+        // Project info must be valid before going further; the other steps can be skipped and revisited.
+        if (n > 0 && InfoError() is { } e)
+        {
+            _step = 0;
+            _error = e;
+            return;
+        }
+        if (_step == 6 && n > _step && _editor?.Validate() is { } bad)
+        {
+            _error = bad;
+            return;
+        }
+        _step = n;
+        if (n >= 6 && _tool?.Id != _m.ToolId)
+        {
+            _tool = null;
+            _editor = null;
+            var t = await Api.GetAsync<ToolDetail>($"api/tools/{_m.ToolId}");
+            _tool = t.Value;
+            _error = t.Error;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = InfoError() ?? _editor?.Validate();
+        if (_error is not null) return;
         _busy = true;
         try
         {
-            var r = await Api.PostAsync<CreatedRef>("api/projects", _m);
-            if (r.Ok && r.Value is not null) Nav.NavigateTo($"/projects/{r.Value.Id}/baseline");
-            else _error = r.Error;
+            if (_createdId is null)
+            {
+                var r = await Api.PostAsync<CreatedRef>("api/projects", new
+                {
+                    code = Code, _m.Name, _m.ToolId, _m.Location, _m.BuildingType, _m.GfaM2, _m.TargetRating,
+                    _m.RegDate, _m.PicName, _m.PicContact, checklist = _done.ToList(),
+                });
+                if (!r.Ok || r.Value is null) { _error = r.Error; return; }
+                _createdId = r.Value.Id;
+            }
+
+            if (_editor is null || _editor.Targeted == 0)
+            {
+                Nav.NavigateTo($"/projects/{_createdId}/baseline");
+                return;
+            }
+
+            var b = await Api.PostAsync<BaselineResult>($"api/projects/{_createdId}/baseline",
+                new { stage = AssessmentStage.SelfCheck, scores = _editor.BuildScores() });
+            if (b.Ok) Nav.NavigateTo($"/projects/{_createdId}");
+            else _error = $"Project {Code} was created, but the baseline was not saved: {b.Error} Fix it and press Create again.";
         }
         finally { _busy = false; }
     }

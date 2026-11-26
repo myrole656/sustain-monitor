@@ -1,0 +1,149 @@
+@* GBI baseline grid used by the New project wizard and the Baseline page.
+   Target = points the team plans to earn; Awarded = points already met today. *@
+<div class="grid grid-main">
+    <div class="card">
+        <div class="card-title">
+            <h2>Score each GBI criterion</h2>
+            <span class="badge">GBI @Tool.Code v@(Tool.Version)</span>
+        </div>
+        <p class="muted">Target = points you plan to earn. Awarded = points the project already meets today, with evidence. Mark criteria that cannot apply as Not applicable. The GBI analysis unlocks when 80% of your targeted points are confirmed.</p>
+        <div class="row mb-1">
+            <button class="btn btn-ghost btn-sm" type="button" @onclick="TargetAllMax">Target every criterion at max</button>
+            <button class="btn btn-ghost btn-sm" type="button" @onclick="TargetAwarded">Target = awarded</button>
+            <button class="btn btn-ghost btn-sm" type="button" @onclick="ClearTargets">Clear targets</button>
+        </div>
+        <div class="cat-tabs" role="tablist">
+            @foreach (var cat in Tool.Categories)
+            {
+                var pts = cat.Criteria.Sum(c => Rows[c.Id].Status == CriterionStatus.NotApplicable ? 0 : Math.Min(Rows[c.Id].Awarded, Rows[c.Id].Max));
+                <button type="button" role="tab" class="cat-tab @(_cat == cat.Id ? "on" : "")" @onclick="() => _cat = cat.Id">
+                    <b>@cat.Code</b><small>@pts / @cat.MaxPoints</small>
+                </button>
+            }
+        </div>
+        @foreach (var cat in Tool.Categories.Where(c => c.Id == _cat))
+        {
+            <h3 class="mt-1">@cat.Name</h3>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Code</th><th>Criterion</th><th>Status</th><th class="num">Target</th><th class="num">Awarded</th><th class="num">Max</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in cat.Criteria)
+                        {
+                            var row = Rows[c.Id];
+                            <tr class="@(row.Awarded > row.Max || row.Target > row.Max ? "row-bad" : "")">
+                                <td><b>@c.Code</b></td>
+                                <td>
+                                    @c.Name
+                                    @if (row.Max != c.MaxPoints)
+                                    {
+                                        <br /><small>Max @row.Max for this project's floor area</small>
+                                    }
+                                </td>
+                                <td>
+                                    <select @bind="row.Status">
+                                        @foreach (var s in Enum.GetValues<CriterionStatus>())
+                                        {
+                                            <option value="@s">@Labels.Of(s)</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td class="num"><input type="number" min="0" max="@row.Max" @bind="row.Target" @bind:event="oninput" disabled="@(row.Status == CriterionStatus.NotApplicable)" class="@(row.Target > row.Max ? "invalid" : "")" /></td>
+                                <td class="num"><input type="number" min="0" max="@row.Max" @bind="row.Awarded" @bind:event="oninput" disabled="@(row.Status == CriterionStatus.NotApplicable)" class="@(row.Awarded > row.Max ? "invalid" : "")" /></td>
+                                <td class="num">@row.Max</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div>
+        <div class="card sticky">
+            <h2>Baseline total</h2>
+            <ScoreRing Value="Awarded" Target="Targeted" Rating="@RatingFor(Awarded)" />
+            <p class="center mt-1"><small>Targeting <b>@Targeted</b> (@RatingFor(Targeted))</small></p>
+            @if (TargetMin is { } need && Targeted < need)
+            {
+                <Alert Kind="warn" Text="@($"Targets add up to {Targeted}. {TargetRating} needs at least {need}.")" />
+            }
+            <ScoreBar Confirmed="Awarded" Projected="Targeted" />
+            <div class="legend mb-1"><span><i class="l-confirmed"></i>Awarded now</span><span><i class="l-projected"></i>Target</span></div>
+            @Actions
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ToolDetail Tool { get; set; } = default!;
+    [Parameter] public decimal? GfaM2 { get; set; }
+    [Parameter] public string? TargetRating { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    public sealed class Row
+    {
+        public int Max { get; set; }
+        public CriterionStatus Status { get; set; } = CriterionStatus.NotStarted;
+        public int Target { get; set; }
+        public int Awarded { get; set; }
+    }
+
+    private Dictionary<int, Row> Rows { get; } = [];
+    private int _toolId;
+    private decimal? _gfa;
+    private int _cat;
+
+    private IEnumerable<Row> Active => Rows.Values.Where(r => r.Status != CriterionStatus.NotApplicable);
+    public int Awarded => Active.Sum(r => Math.Clamp(r.Awarded, 0, r.Max));
+    public int Targeted => Active.Sum(r => Math.Clamp(r.Target, 0, r.Max));
+    private int? TargetMin => Tool.RatingBands.FirstOrDefault(b => b.Name == TargetRating)?.MinPoints;
+
+    protected override void OnParametersSet()
+    {
+        if (_toolId == Tool.Id && _gfa == GfaM2 && Rows.Count > 0) return;
+        var keep = _toolId == Tool.Id ? Rows.ToDictionary(kv => kv.Key, kv => kv.Value) : [];
+        Rows.Clear();
+        foreach (var c in Tool.Categories.SelectMany(x => x.Criteria))
+        {
+            var max = c.MaxPoints;
+            // Same rule as the scoring engine: Interiors EE2 uses its 6-point version above 300 m².
+            foreach (var v in c.Variants)
+                if (v.ConditionKey == "GfaAbove300" && GfaM2 is > 300m) max = v.MaxPoints;
+            var row = keep.GetValueOrDefault(c.Id) ?? new Row();
+            row.Max = max;
+            Rows[c.Id] = row;
+        }
+        _toolId = Tool.Id;
+        _gfa = GfaM2;
+        if (Tool.Categories.All(c => c.Id != _cat)) _cat = Tool.Categories.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private void TargetAllMax() { foreach (var r in Rows.Values) r.Target = r.Max; }
+    private void TargetAwarded() { foreach (var r in Rows.Values) r.Target = Math.Max(r.Target, r.Awarded); }
+    private void ClearTargets() { foreach (var r in Rows.Values) r.Target = 0; }
+
+    public string RatingFor(int points) =>
+        Tool.RatingBands.OrderByDescending(b => b.MinPoints).FirstOrDefault(b => points >= b.MinPoints)?.Name ?? "Not rated";
+
+    /// <summary>Null when every row is within 0..max; otherwise a message for the user.</summary>
+    public string? Validate()
+    {
+        var bad = Rows.Where(kv => kv.Value.Status != CriterionStatus.NotApplicable &&
+                                   (kv.Value.Awarded > kv.Value.Max || kv.Value.Target > kv.Value.Max || kv.Value.Awarded < 0 || kv.Value.Target < 0))
+            .Select(kv => Tool.Categories.SelectMany(c => c.Criteria).First(c => c.Id == kv.Key).Code).ToList();
+        return bad.Count == 0 ? null : $"Points outside 0 to max on: {string.Join(", ", bad)}. Fix the highlighted rows.";
+    }
+
+    /// <summary>The scores in the shape POST /api/projects/{id}/baseline expects.</summary>
+    public List<object> BuildScores() => Rows.Select(kv => (object)new
+    {
+        criterionId = kv.Key,
+        status = kv.Value.Status == CriterionStatus.NotApplicable ? CriterionStatus.NotApplicable
+               : kv.Value.Awarded >= kv.Value.Target && kv.Value.Target > 0 ? CriterionStatus.Achieved
+               : kv.Value.Awarded > 0 && kv.Value.Status == CriterionStatus.NotStarted ? CriterionStatus.InProgress
+               : kv.Value.Status,
+        pointsTargeted = kv.Value.Status == CriterionStatus.NotApplicable ? 0 : kv.Value.Target,
+        pointsAwarded = kv.Value.Status == CriterionStatus.NotApplicable ? 0 : kv.Value.Awarded,
+    }).ToList();
+}

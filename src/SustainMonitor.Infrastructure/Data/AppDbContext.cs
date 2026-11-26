@@ -37,6 +37,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<CriterionScore> CriterionScores => Set<CriterionScore>();
     public DbSet<CategoryScore> CategoryScores => Set<CategoryScore>();
     public DbSet<Evidence> EvidenceFiles => Set<Evidence>();
+    public DbSet<ProjectChecklistEntry> ProjectChecklist => Set<ProjectChecklistEntry>();
 
     // CO-tickets
     public DbSet<Ticket> Tickets => Set<Ticket>();
@@ -150,6 +151,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasOne(x => x.Assessment).WithMany(a => a.CategoryScores).HasForeignKey(x => x.AssessmentId);
             e.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
         });
+        m.Entity<ProjectChecklistEntry>(e =>
+        {
+            e.HasKey(x => new { x.ProjectId, x.ItemKey });
+            e.Property(x => x.ItemKey).HasMaxLength(60);
+            e.HasOne(x => x.Project).WithMany(p => p.Checklist).HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         m.Entity<Evidence>(e =>
         {
             e.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);

@@ -18,6 +18,19 @@ else
         }
     </ProjectHeader>
 
+    @if (_p.Phases is { Count: > 0 } phases)
+    {
+        <a class="phase-strip mb-2" href="/projects/@_p.Id/lifecycle" title="Open lifecycle checklist">
+            @foreach (var ph in phases)
+            {
+                <div class="phase-pill @(ph.Complete ? "done" : ph.Phase == _p.CurrentPhase ? "now" : ph.Done > 0 ? "part" : "")">
+                    <b>@Labels.Of(ph.Phase)</b><small>@ph.Done / @ph.Total</small>
+                    <div class="mini-track"><div style="width:@(ph.Total == 0 ? 0 : ph.Done * 100 / ph.Total)%"></div></div>
+                </div>
+            }
+        </a>
+    }
+
     @if (_p.Current is null || _p.Progress is null)
     {
         <div class="card empty">
@@ -44,7 +57,8 @@ else
                         <h2>GBI score</h2>
                         <small>Snapshot v@(_p.Current.VersionNo) · @Labels.Of(_p.Current.Trigger) · @Labels.Date(_p.Current.CreatedAt)</small>
                     </div>
-                    <div class="grid grid-2 mb-1">
+                    <div class="score-hero mb-1">
+                        <ScoreRing Value="pr.ConfirmedPoints" Target="pr.ProjectedPoints" Rating="@pr.ConfirmedRating" />
                         <div class="stat">
                             <span class="stat-label">Confirmed</span>
                             <span class="stat-value">@pr.ConfirmedPoints <small style="font-size:1rem">/ 100</small></span>

@@ -25,6 +25,8 @@ public static class Labels
         _ => Of(to),
     };
 
+    public static string Of(SustainMonitor.Domain.Projects.ProjectPhase p) => p.ToString();
+
     public static string Of(CompanyRole r) => r switch
     {
         CompanyRole.CEO => "CEO",
